@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI ASSISTANT | BMW M DESIGN</title>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Marked.js for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <!-- M Tricolor Stripe -->
+    <div class="m-stripe">
+        <div class="stripe light-blue"></div>
+        <div class="stripe dark-blue"></div>
+        <div class="stripe red"></div>
+    </div>
+
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <button id="newChatBtn" class="button-primary-outline w-100 new-chat-btn">
+                <span>+</span> NEW CHAT
+            </button>
+            <div class="sidebar-label">HISTORY</div>
+            <ul id="historyList" class="history-list">
+                <!-- Chat history items injected here by JS -->
+            </ul>
+            <div class="sidebar-footer">
+                <div class="badge">M PERFORMANCE</div>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <div class="chat-layout">
+            <!-- Mobile Toggle -->
+            <button id="mobileMenuBtn" class="mobile-menu-btn">☰</button>
+
+            <!-- Header -->
+            <header class="chat-header">
+                <h1 class="display-title">AI ASSISTANT</h1>
+                <p class="subtitle">INTELLIGENT MOTORSPORT ENGINEERING</p>
+            </header>
+
+            <!-- Chat Container -->
+            <main class="chat-container">
+                <div id="chatBox" class="chat-box">
+                    <!-- Initial AI Welcome Message -->
+                    <div class="message ai-message">
+                        <div class="message-content">
+                            <p>SYSTEM ONLINE. HOW CAN I ASSIST YOU TODAY?</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Typing Indicator (Hidden by default) -->
+                <div id="typingIndicator" class="typing-indicator hidden">
+                    PROCESSING...
+                </div>
+            </main>
+
+            <!-- Input Area -->
+            <footer class="input-area">
+                <form id="chatForm" class="input-form">
+                    <textarea 
+                        id="userInput" 
+                        placeholder="ENTER QUERY..." 
+                        rows="1" 
+                        required></textarea>
+                    <button type="submit" id="sendBtn" class="button-primary">SEND</button>
+                </form>
+            </footer>
+        </div>
+    </div>
+
+    <!-- JS -->
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,7 +1,20 @@
 {
+  "gemini-2.5-flash-lite": {
+    "input_cost_per_million": 0.03,
+    "output_cost_per_million": 2.5,
+    "date_checked": "24 October 2026",
+    "notes": "Verify current pricing at https://ai.google.dev/pricing"
+  },
+  "gemini-3.8-flash": {
+    "input_cost_per_million": 0.03,
+    "output_cost_per_million": 2.5,
+    "date_checked": "24 October 2026",
+    "notes": "Verify current pricing at https://ai.google.dev/pricing"
+  },
   "gemini-2.5-flash": {
-    "input_cost_per_million": 0.075,
-    "output_cost_per_million": 0.30,
+    "input_cost_per_million": 0.03,
+    "output_cost_per_million": 2.5,
+    "date_checked": "24 October 2026",
     "notes": "Verify current pricing at https://ai.google.dev/pricing"
   },
   "gemini-1.5-flash": {

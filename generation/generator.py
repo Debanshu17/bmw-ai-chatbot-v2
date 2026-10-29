@@ -10,6 +10,7 @@ import re
 from typing import Any, Dict, List, Optional
 import google.generativeai as genai
 from config import settings
+from evals.retry import call_gemini_with_retry
 from generation.schemas import Citation, RAGResponse
 from generation.validator import validate_and_filter_citations
 from guardrails.gates import (
@@ -62,7 +63,9 @@ def generate_rag_response(
             citations=[],
             confidence=0.0,
             used_fallback=True,
-            telemetry=telemetry
+            telemetry=telemetry,
+            answer_source="gemini",
+            is_error=False
         )
         log_telemetry(query=query, telemetry=telemetry, used_fallback=True, citations_count=0)
         return resp
@@ -84,32 +87,50 @@ def generate_rag_response(
         "Generate a structured JSON response with your answer and citations."
     )
 
-    # Step 4: Model Invocation
+    # Step 4: Model Invocation with Exponential Backoff Retry (up to 5x)
     raw_text = ""
     prompt_tokens = len(prompt.split()) * 2
     completion_tokens = 0
+    answer_source = "gemini"
 
-    try:
-        model = genai.GenerativeModel(
-            model_name=settings.CHAT_MODEL,
-            system_instruction=get_system_prompt(),
-            generation_config={"temperature": 0.0, "response_mime_type": "application/json"}
+    model = genai.GenerativeModel(
+        model_name=settings.CHAT_MODEL,
+        system_instruction=get_system_prompt(),
+        generation_config={"temperature": 0.0, "response_mime_type": "application/json"}
+    )
+    tracker.record_first_token()
+
+    def _invoke_gemini():
+        return model.generate_content(prompt)
+
+    api_response, is_api_error, err_detail = call_gemini_with_retry(_invoke_gemini, max_retries=5)
+
+    if is_api_error:
+        # Infrastructure error persisted after 5 retries -> Never score as wrong answer
+        logger.error(f"Generation API call failed after 5 retries: {err_detail}")
+        telemetry = tracker.stop(prompt_tokens=prompt_tokens, completion_tokens=0)
+        return RAGResponse(
+            answer="ERROR",
+            citations=[],
+            confidence=0.0,
+            used_fallback=True,
+            telemetry=telemetry,
+            answer_source="gemini",
+            is_error=True,
+            error_message=err_detail
         )
-        tracker.record_first_token()
-        response = model.generate_content(prompt)
-        raw_text = response.text or ""
-        completion_tokens = len(raw_text.split()) * 2
 
-        # Parse JSON
+    # Parse JSON from successful API response, or use extractive fallback on parsing failure
+    try:
+        raw_text = api_response.text or ""
+        completion_tokens = len(raw_text.split()) * 2
         parsed_json = json.loads(raw_text)
         answer_text = parsed_json.get("answer", "")
         raw_citations = parsed_json.get("citations", [])
-
+        answer_source = "gemini"
     except Exception as e:
-        logger.warning(f"Gemini API call or JSON parsing failed ({e}). Extracting grounded answer from retrieved context.")
-        # Graceful Extractive Fallback: Synthesize answer from top retrieved chunk
+        logger.warning(f"JSON parsing failed on model output ({e}). Extracting grounded answer from retrieved context.")
         top_chunk = retrieved_chunks[0]
-        # Extract leading relevant sentences
         sentences = [s.strip() for s in top_chunk["content"].split(". ") if s.strip()]
         answer_text = ". ".join(sentences[:3]) + "."
         raw_citations = [
@@ -120,6 +141,7 @@ def generate_rag_response(
                 "quote_snippet": sentences[0] if sentences else top_chunk["content"][:80]
             }
         ]
+        answer_source = "extractive_fallback"
 
     # Step 5: Citation Provenance Verification
     validated_citations, groundedness = validate_and_filter_citations(
@@ -135,11 +157,15 @@ def generate_rag_response(
         answer=answer_text,
         citations=validated_citations,
         confidence=confidence,
-        used_fallback=False
+        used_fallback=False,
+        answer_source=answer_source,
+        is_error=False
     )
 
     # Step 7: Gate 2 (Post-LLM Grounding & Refusal Gate)
     final_response = check_generation_gate(initial_response)
+    final_response.answer_source = answer_source
+    final_response.is_error = False
 
     # Step 8: Telemetry finalization
     telemetry = tracker.stop(

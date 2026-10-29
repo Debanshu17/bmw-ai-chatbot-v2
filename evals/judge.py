@@ -7,9 +7,10 @@ deterministic evaluation rubric at temperature=0 with fuzzy-match fallback.
 import json
 import logging
 import re
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 import google.generativeai as genai
 from config import settings
+from evals.retry import call_gemini_with_retry
 from guardrails.gates import FALLBACK_MESSAGE
 
 logger = logging.getLogger(__name__)
@@ -85,50 +86,98 @@ def fuzzy_match_verdict(candidate: str, ground_truth: str, answerable: bool) -> 
     return False, 0.0, f"Failed overlap threshold (overlap={overlap_ratio:.2f}, numbers_match={numbers_match})."
 
 
-def judge_answer(question: str, candidate_answer: str, ground_truth_answer: str, answerable: bool) -> Dict[str, Any]:
-    """Judges candidate answer using LLM-as-a-judge with deterministic fallback.
+def judge_answer(
+    question: str,
+    candidate_answer: str,
+    ground_truth_answer: str,
+    answerable: bool,
+    candidate_is_error: bool = False
+) -> Dict[str, Any]:
+    """Judges candidate answer using LLM-as-a-judge with retry and deterministic fallback.
 
     Args:
         question: User query.
         candidate_answer: Model output.
         ground_truth_answer: Gold standard answer.
         answerable: Ground truth answerability boolean.
+        candidate_is_error: True if the candidate answer was aborted due to infrastructure error.
 
     Returns:
-        Dict with 'verdict' ('PASS'|'FAIL'), 'score' (1.0|0.0), and 'reason'.
+        Dict with 'verdict' ('PASS'|'FAIL'|'ERROR'), 'score' (1.0|0.0|None), 'reason',
+        'judge_method' ('llm'|'fuzzy'), and 'is_error' (bool).
     """
+    # Infrastructure error fast-path: never score API failures as wrong answers
+    if candidate_is_error or candidate_answer.strip() == "ERROR":
+        return {
+            "verdict": "ERROR",
+            "score": None,
+            "reason": "Infrastructure error occurred during answer generation.",
+            "judge_method": "none",
+            "is_error": True
+        }
+
     # Fast path for fallback constant match
     if candidate_answer.strip() == FALLBACK_MESSAGE and ground_truth_answer.strip() == FALLBACK_MESSAGE:
-        return {"verdict": "PASS", "score": 1.0, "reason": "Exact fallback message match."}
+        return {
+            "verdict": "PASS",
+            "score": 1.0,
+            "reason": "Exact fallback message match.",
+            "judge_method": "fuzzy",
+            "is_error": False
+        }
 
-    # Attempt LLM-as-a-Judge
+    # Attempt LLM-as-a-Judge with exponential backoff retry (up to 5x)
     if settings.GEMINI_API_KEY:
-        try:
+        prompt = (
+            f"Question: {question}\n"
+            f"Ground Truth Answer: {ground_truth_answer}\n"
+            f"Candidate Answer: {candidate_answer}\n"
+            f"Is Answerable: {answerable}\n\n"
+            "Grade the candidate answer."
+        )
+
+        def _invoke_judge():
             model = genai.GenerativeModel(
                 model_name=settings.CHAT_MODEL,
                 system_instruction=JUDGE_SYSTEM_PROMPT,
                 generation_config={"temperature": 0.0, "response_mime_type": "application/json"}
             )
-            prompt = (
-                f"Question: {question}\n"
-                f"Ground Truth Answer: {ground_truth_answer}\n"
-                f"Candidate Answer: {candidate_answer}\n"
-                f"Is Answerable: {answerable}\n\n"
-                "Grade the candidate answer."
-            )
-            resp = model.generate_content(prompt)
+            return model.generate_content(prompt)
+
+        resp, is_api_error, err_detail = call_gemini_with_retry(_invoke_judge, max_retries=5)
+
+        if is_api_error:
+            # Judge API failed after 5 retries: mark as ERROR (not a failure of the model under test)
+            logger.error(f"LLM-as-a-judge API call failed after 5 retries: {err_detail}")
+            return {
+                "verdict": "ERROR",
+                "score": None,
+                "reason": f"Judge API failure persisted after 5 retries: {err_detail}",
+                "judge_method": "llm",
+                "is_error": True
+            }
+
+        try:
             data = json.loads(resp.text)
             verdict = data.get("verdict", "FAIL").upper()
             score = 1.0 if verdict == "PASS" else 0.0
             reason = data.get("reason", "Graded by LLM-as-a-Judge.")
-            return {"verdict": verdict, "score": score, "reason": reason}
+            return {
+                "verdict": verdict,
+                "score": score,
+                "reason": reason,
+                "judge_method": "llm",
+                "is_error": False
+            }
         except Exception as e:
-            logger.warning(f"LLM-as-a-judge invocation failed ({e}). Reverting to fuzzy match.")
+            logger.warning(f"LLM-as-a-judge JSON parsing failed ({e}). Reverting to fuzzy match.")
 
     # Fallback to deterministic fuzzy matcher
     passed, score, reason = fuzzy_match_verdict(candidate_answer, ground_truth_answer, answerable)
     return {
         "verdict": "PASS" if passed else "FAIL",
         "score": score,
-        "reason": f"Fuzzy fallback: {reason}"
+        "reason": f"Fuzzy fallback: {reason}",
+        "judge_method": "fuzzy",
+        "is_error": False
     }

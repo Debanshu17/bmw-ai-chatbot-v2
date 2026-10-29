@@ -33,6 +33,9 @@ class RAGResponse(BaseModel):
     confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Confidence score from 0.0 to 1.0")
     used_fallback: bool = Field(default=False, description="True if response triggered a fallback gate")
     telemetry: Optional[TelemetryData] = Field(default=None, description="Latency and token telemetry")
+    answer_source: str = Field(default="gemini", description="Source of answer: 'gemini' or 'extractive_fallback'")
+    is_error: bool = Field(default=False, description="True if query encountered an infrastructure API error")
+    error_message: Optional[str] = Field(default=None, description="Error details if is_error is True")
 
 
 class ChatRequest(BaseModel):

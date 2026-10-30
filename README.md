@@ -49,29 +49,7 @@ flowchart TD
 
 ## 📊 Benchmark Comparison: No-RAG Baseline vs. v2 Production
 
-The metrics below represent **real, measured benchmark data** evaluated across the identical 40-question technical test dataset ([`evals/dataset.jsonl`](evals/dataset.jsonl)):
-- **No-RAG baseline (plain Gemini call)**: Direct parametric Gemini LLM without RAG, document grounding, or guardrails (measured in `reports/eval_v1_baseline_20261024_011731.json`).
-- **v2 Production**: Full production RAG pipeline with dense vector retrieval, in-code citation verification, and deterministic score gating (measured in `reports/eval_v2_production_20261029_105018.json`).
-- **LLM Model**: Google **`gemini-2.5-flash-lite`** (with `models/gemini-embedding-001` for 3,072-dimensional embeddings).
-- **Cost Accounting**: Query costs are estimated at official paid-tier rates ($0.03 input / $2.50 output per 1M tokens, checked on **24 October 2026** in [`config/pricing.json`](config/pricing.json)), while development ran strictly on Google's Free Tier (actual spend: **$0.00**).
-
-| Metric | No-RAG baseline (plain Gemini call) | v2 Production (RAG + Guardrails) | Delta / Improvement | Significance |
-| :--- | :--- | :--- | :--- | :--- |
-| **Run Validity** | `VALID` | **`VALID`** | — | Extractive fallback on answerable <= 5% threshold |
-| **Infrastructure Errors** | `0 (0.0%)` | **`0 (0.0%)`** | `0` | 5x exponential backoff retry; 0 API errors scored as wrong |
-| **Answer Accuracy** | `0.0%` (0/40) | **`90.0%`** (36/40) | **`+90.00%`** | +90% absolute increase in factual correctness |
-| **Answer Source: Gemini** | `40 (100.0%)` | **`40 (100.0%)`** | `0` | 100% generative model responses; 0 ungrounded fallbacks |
-| **Answer Source: Extractive FB** | `0 (0.0%)` | **`0 (0.0%)`** | `0` | 0.0% on answerable questions (strictly <= 5% valid limit) |
-| **Judge Method: LLM** | `30` | **`30`** | `0` | Strict zero-temperature LLM-as-a-judge rubric on all answerable |
-| **Judge Method: Fuzzy** | `10` | **`10`** | `0` | Deterministic refusal verification for out-of-scope |
-| **Citation Precision** | `100.0%` (0 cited) | **`100.0%`** | `0.0%` | Zero fabricated or ungrounded citations |
-| **Citation Recall** | `25.0%` | **`98.8%`** | **`+73.75%`** | High-precision source document grounding |
-| **Fallback True-Positive Rate** | `0.0%` | **`100.0%`** | **`+100.00%`** | 10/10 out-of-scope queries correctly rejected |
-| **False-Fallback Rate** | `0.0%` | **`0.0%`** | `0.0%` | Zero valid answerable questions falsely rejected |
-| **Average Latency** | `398.3 ms` | **`799.2 ms`** | `+400.9 ms` | Sub-second full RAG pipeline with dual guardrails |
-| **p95 Latency** | `470.6 ms` | **`971.0 ms`** | `+500.4 ms` | Sub-second tail latency across the pipeline |
-| **Average Query Cost** | `$0.000000` | **`$0.000013`** | `+$0.000013` | Fraction of a cent using updated pricing.json rates |
-| **Out-of-Scope Query Cost** | `$0.000000` | **`$0.000000`** | `$0.000000` | Gate 1 intercepts queries at **zero token cost** |
+*Results pending a clean re-run.*
 
 ---
 

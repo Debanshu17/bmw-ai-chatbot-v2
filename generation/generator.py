@@ -124,6 +124,9 @@ def generate_rag_response(
     try:
         raw_text = api_response.text or ""
         completion_tokens = len(raw_text.split()) * 2
+        if hasattr(api_response, "usage_metadata") and api_response.usage_metadata:
+            prompt_tokens = getattr(api_response.usage_metadata, "prompt_token_count", prompt_tokens)
+            completion_tokens = getattr(api_response.usage_metadata, "candidates_token_count", completion_tokens)
         parsed_json = json.loads(raw_text)
         answer_text = parsed_json.get("answer", "")
         raw_citations = parsed_json.get("citations", [])

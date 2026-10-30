@@ -2,9 +2,9 @@
 
 Runs datasets through the RAG pipeline or v1 baseline, computes comprehensive
 accuracy, citation precision/recall, fallback reliability, latency percentiles,
-and financial cost metrics. Outputs structured JSON and human-readable Markdown.
+token usage, and financial cost metrics. Outputs structured JSON and human-readable Markdown.
 Never scores infrastructure API failures as wrong answers, tracks answer sources,
-judge methods, and enforces validity thresholds.
+judge methods, enforces validity thresholds, and strictly verifies resume caches.
 """
 
 import argparse
@@ -27,10 +27,46 @@ from evals.judge import judge_answer
 from evals.retry import call_gemini_with_retry
 from generation.generator import generate_rag_response
 from retrieval.index import global_vector_index
-from telemetry.monitor import TelemetryTracker
+from telemetry.monitor import TelemetryTracker, calculate_cost
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
+
+# Evaluation harness version tag - cache entries must match this exactly
+HARNESS_VERSION = "2.1.0"
+
+
+def startup_model_check(model_name: str, api_key: str) -> None:
+    """Verifies that the configured model is available and has active quota before running evaluations.
+    
+    Aborts immediately on 404 (NotFound) or 429 (ResourceExhausted/Quota).
+    """
+    import google.generativeai as genai
+    logger.info(f"Running startup model check on '{model_name}'...")
+    if not api_key:
+        raise RuntimeError("STARTUP CHECK FAILED: GEMINI_API_KEY environment variable is missing or empty.")
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(model_name=model_name)
+        _ = model.generate_content("ping")
+        logger.info(f"Startup check PASSED for model '{model_name}'.")
+    except Exception as e:
+        err_msg = str(e)
+        if "404" in err_msg or "NotFound" in err_msg or "not found" in err_msg.lower():
+            logger.critical(f"STARTUP CHECK ABORTED: Model '{model_name}' returned 404 Not Found.")
+            raise RuntimeError(
+                f"STARTUP CHECK FAILED: Model '{model_name}' is not found (404) or not available for your API key. "
+                f"Please update CHAT_MODEL in .env to an available model on your account. Error: {e}"
+            )
+        elif "429" in err_msg or "ResourceExhausted" in err_msg or "quota" in err_msg.lower():
+            logger.critical(f"STARTUP CHECK ABORTED: Model '{model_name}' returned 429 Quota Exhausted.")
+            raise RuntimeError(
+                f"STARTUP CHECK FAILED: API quota exceeded (429) for model '{model_name}'. "
+                f"Please verify billing or retry after daily quota resets. Error: {e}"
+            )
+        else:
+            logger.critical(f"STARTUP CHECK ABORTED: Error invoking model '{model_name}': {e}")
+            raise RuntimeError(f"STARTUP CHECK FAILED for model '{model_name}': {e}")
 
 
 def run_v1_baseline_query(question: str) -> Dict[str, Any]:
@@ -52,12 +88,15 @@ def run_v1_baseline_query(question: str) -> Dict[str, Any]:
     api_response, is_api_error, err_detail = call_gemini_with_retry(_call, max_retries=5)
     if is_api_error:
         logger.error(f"v1 baseline call failed after 5 retries: {err_detail}")
-        telemetry = tracker.stop(prompt_tokens=len(prompt.split()) * 2, completion_tokens=0)
+        prompt_tokens = len(prompt.split()) * 2
+        telemetry = tracker.stop(prompt_tokens=prompt_tokens, completion_tokens=0)
         return {
             "answer": "ERROR",
             "citations": [],
             "used_fallback": False,
             "telemetry": telemetry,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": 0,
             "answer_source": "gemini",
             "is_error": True,
             "error_message": err_detail
@@ -67,6 +106,9 @@ def run_v1_baseline_query(question: str) -> Dict[str, Any]:
         text = api_response.text or ""
         prompt_tokens = len(prompt.split()) * 2
         completion_tokens = len(text.split()) * 2
+        if hasattr(api_response, "usage_metadata") and api_response.usage_metadata:
+            prompt_tokens = getattr(api_response.usage_metadata, "prompt_token_count", prompt_tokens)
+            completion_tokens = getattr(api_response.usage_metadata, "candidates_token_count", completion_tokens)
     except Exception as e:
         logger.error(f"v1 baseline text extraction failed: {e}")
         text = "SYSTEM ERROR"
@@ -79,6 +121,8 @@ def run_v1_baseline_query(question: str) -> Dict[str, Any]:
         "citations": [],
         "used_fallback": False,
         "telemetry": telemetry,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
         "answer_source": "gemini",
         "is_error": False,
         "error_message": None
@@ -144,6 +188,29 @@ def is_error_entry(entry: Dict[str, Any]) -> bool:
     return False
 
 
+def is_valid_cache_entry(entry: Any, target_model: str, expected_harness_version: str) -> bool:
+    """Strictly validates a cached entry before allowing reuse.
+
+    Any cached entry without answer_source, judge_method, model name, or harness version
+    must be rejected and re-run. Must match current target_model and expected_harness_version.
+    """
+    if not isinstance(entry, dict):
+        return False
+    ans_src = entry.get("answer_source")
+    if not ans_src or ans_src not in ["gemini", "extractive_fallback"]:
+        return False
+    judge_m = entry.get("judge_method")
+    if not judge_m or judge_m not in ["llm", "fuzzy"]:
+        return False
+    if entry.get("model") != target_model:
+        return False
+    if entry.get("harness_version") != expected_harness_version:
+        return False
+    if is_error_entry(entry):
+        return False
+    return True
+
+
 def run_eval(
     dataset_path: Path,
     out_dir: Path,
@@ -151,14 +218,15 @@ def run_eval(
     similarity_threshold: float = settings.SIMILARITY_THRESHOLD,
     limit: Optional[int] = None,
     resume: bool = False,
-    checkpoint_path: Optional[Path] = None
+    checkpoint_path: Optional[Path] = None,
+    skip_startup_check: bool = False
 ) -> Dict[str, Any]:
     """Executes evaluation run across all entries in the dataset.
     
     Excludes infrastructure errors from accuracy and latency calculations.
     Aborts run if error rate exceeds 5%. Marks run invalid if extractive fallback
     on answerable questions exceeds 5%.
-    Supports --resume to reuse successful cached queries and only retry missing or ERROR queries.
+    Supports --resume to reuse strictly validated cached queries and only retry missing or ERROR queries.
     """
     dataset = load_dataset(dataset_path)
     if limit:
@@ -167,6 +235,10 @@ def run_eval(
     total_in_dataset = len(dataset)
     version_label = "v1_baseline" if is_baseline_v1 else "v2_production"
     logger.info(f"Loaded {total_in_dataset} evaluation entries from {dataset_path} for {version_label}")
+
+    # Startup model check: fail fast on 404 or 429 quota errors before starting evaluations
+    if not skip_startup_check and settings.GEMINI_API_KEY:
+        startup_model_check(settings.CHAT_MODEL, settings.GEMINI_API_KEY)
 
     # Build vector index if needed for v2
     if not is_baseline_v1:
@@ -188,21 +260,38 @@ def run_eval(
             except Exception as e:
                 logger.warning(f"Failed to read checkpoint {chk_file}: {e}")
         else:
-            # Fall back to latest existing report for this version
-            existing_reports = sorted(out_dir.glob(f"eval_{version_label}_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+            # Fall back to latest valid report in out_dir, strictly ignoring invalid_archive
+            existing_reports = [
+                p for p in out_dir.glob(f"eval_{version_label}_*.json")
+                if "invalid_archive" not in p.parts
+            ]
+            existing_reports = sorted(existing_reports, key=lambda p: p.stat().st_mtime, reverse=True)
             if existing_reports:
                 latest_report = existing_reports[0]
                 try:
                     with open(latest_report, "r", encoding="utf-8") as f:
                         rep_data = json.load(f)
-                        cached_list = rep_data.get("detailed_results", [])
-                    logger.info(f"Loaded {len(cached_list)} cached entries from latest report: {latest_report.name}")
+                        if (
+                            rep_data.get("harness_version") == HARNESS_VERSION
+                            and rep_data.get("model") == settings.CHAT_MODEL
+                        ):
+                            cached_list = rep_data.get("detailed_results", [])
+                            logger.info(f"Loaded {len(cached_list)} cached entries from latest report: {latest_report.name}")
+                        else:
+                            logger.info(
+                                f"Skipping report {latest_report.name}: mismatched harness version "
+                                f"({rep_data.get('harness_version')} vs {HARNESS_VERSION}) or model "
+                                f"({rep_data.get('model')} vs {settings.CHAT_MODEL})."
+                            )
                 except Exception as e:
                     logger.warning(f"Failed to read latest report {latest_report}: {e}")
 
+        # Strictly validate cached entries - reject any without answer_source, judge_method, model, or harness_version
         for r in cached_list:
-            if "id" in r:
+            if "id" in r and is_valid_cache_entry(r, target_model=settings.CHAT_MODEL, expected_harness_version=HARNESS_VERSION):
                 cache_by_id[r["id"]] = r
+            elif "id" in r:
+                logger.info(f"Discarding invalid cache entry for {r['id']} (missing answer_source/judge_method/model/harness_version or error)")
 
     results: List[Dict[str, Any]] = []
     category_stats: Dict[str, Dict[str, Any]] = {}
@@ -228,26 +317,27 @@ def run_eval(
         category_stats[cat]["total"] += 1
 
         cached_res = cache_by_id.get(qid) if resume else None
-        if cached_res and not is_error_entry(cached_res):
-            logger.info(f"[{i+1}/{total_in_dataset}] Reusing CACHED result for {qid} ({cat})...")
-            cand_ans = cached_res.get("candidate_answer", "")
+        if cached_res:
+            logger.info(f"[{i+1}/{total_in_dataset}] Reusing valid CACHED result for {qid} ({cat})...")
+            cand_ans = cached_res["candidate_answer"]
             cits = cached_res.get("citations", [])
             used_fb = cached_res.get("used_fallback", False)
-            ans_src = cached_res.get("answer_source", "gemini")
+            ans_src = cached_res["answer_source"]
             item_is_error = False
             err_msg = None
             passed = cached_res.get("passed", False)
             judge_reason = cached_res.get("judge_reason", "")
-            judge_method = cached_res.get("judge_method", "llm" if answerable else "fuzzy")
+            judge_method = cached_res["judge_method"]
             c_prec = cached_res.get("citations_precision")
             c_rec = cached_res.get("citations_recall")
             duration_ms = cached_res.get("duration_ms", 0.0)
             ttft_ms = cached_res.get("ttft_ms", 0.0)
+            prompt_tokens = cached_res.get("prompt_tokens", 0)
+            completion_tokens = cached_res.get("completion_tokens", 0)
             cost = cached_res.get("cost_usd", 0.0)
             verdict = cached_res.get("verdict", "PASS" if passed else "FAIL")
         else:
-            action_label = "Retrying ERROR" if (cached_res and is_error_entry(cached_res)) else "Evaluating"
-            logger.info(f"[{i+1}/{total_in_dataset}] {action_label} {qid} ({cat})...")
+            logger.info(f"[{i+1}/{total_in_dataset}] Evaluating {qid} ({cat})...")
 
             if is_baseline_v1:
                 resp_data = run_v1_baseline_query(q)
@@ -255,9 +345,11 @@ def run_eval(
                 cits = resp_data["citations"]
                 used_fb = resp_data["used_fallback"]
                 telemetry = resp_data["telemetry"]
-                ans_src = resp_data.get("answer_source", "gemini")
+                ans_src = resp_data["answer_source"]
                 query_is_error = resp_data.get("is_error", False)
                 err_msg = resp_data.get("error_message")
+                prompt_tokens = resp_data.get("prompt_tokens", 0)
+                completion_tokens = resp_data.get("completion_tokens", 0)
             else:
                 rag_resp = generate_rag_response(
                     query=q,
@@ -270,6 +362,8 @@ def run_eval(
                 ans_src = rag_resp.answer_source
                 query_is_error = rag_resp.is_error
                 err_msg = rag_resp.error_message
+                prompt_tokens = telemetry.prompt_tokens if telemetry else 0
+                completion_tokens = telemetry.completion_tokens if telemetry else 0
 
             # Judge evaluation (fast-paths if candidate answer had infrastructure error)
             judge_res = judge_answer(
@@ -309,7 +403,9 @@ def run_eval(
             # Telemetry metrics
             duration_ms = telemetry.duration_s * 1000.0 if telemetry else 0.0
             ttft_ms = telemetry.ttft_ms if telemetry else 0.0
-            cost = telemetry.computed_cost_usd if telemetry else 0.0
+            cost = telemetry.computed_cost_usd if telemetry else calculate_cost(
+                settings.CHAT_MODEL, prompt_tokens, completion_tokens
+            )
 
         # Fallback accounting on non-error queries
         if not item_is_error:
@@ -348,9 +444,14 @@ def run_eval(
             "citations_precision": round(c_prec, 4) if c_prec is not None else None,
             "citations_recall": round(c_rec, 4) if c_rec is not None else None,
             "used_fallback": used_fb,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
             "duration_ms": round(duration_ms, 2),
             "ttft_ms": round(ttft_ms, 2),
-            "cost_usd": cost
+            "cost_usd": cost,
+            "model": settings.CHAT_MODEL,
+            "harness_version": HARNESS_VERSION
         }
         results.append(result_entry)
 
@@ -395,6 +496,11 @@ def run_eval(
         p50_lat = p95_lat = avg_lat = 0.0
 
     avg_ttft = round(float(np.mean(ttfts)), 2) if ttfts else 0.0
+
+    # Token and cost calculations
+    total_prompt_tokens = sum(r.get("prompt_tokens", 0) for r in results)
+    total_completion_tokens = sum(r.get("completion_tokens", 0) for r in results)
+    total_tokens = total_prompt_tokens + total_completion_tokens
     total_cost = round(float(np.sum(costs)), 6)
     avg_cost = round(float(np.mean(costs)), 6) if costs else 0.0
 
@@ -439,11 +545,12 @@ def run_eval(
     failed_cases = [r for r in valid_results if not r["passed"]]
 
     timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-    version_label = "v1_baseline" if is_baseline_v1 else "v2_production"
 
     report = {
         "timestamp": timestamp_str,
         "version": version_label,
+        "model": settings.CHAT_MODEL,
+        "harness_version": HARNESS_VERSION,
         "is_valid": is_valid,
         "validity_status": validity_status,
         "total_queries": total_queries,
@@ -460,6 +567,9 @@ def run_eval(
         "latency_p50_ms": p50_lat,
         "latency_p95_ms": p95_lat,
         "avg_ttft_ms": avg_ttft,
+        "total_prompt_tokens": total_prompt_tokens,
+        "total_completion_tokens": total_completion_tokens,
+        "total_tokens": total_tokens,
         "total_cost_usd": total_cost,
         "avg_cost_per_query_usd": avg_cost,
         "gemini_answers_count": gemini_answers_count,
@@ -503,6 +613,8 @@ def write_markdown_report(report: Dict[str, Any], file_path: Path) -> None:
     lines = [
         f"# Evaluation Report: {report['version'].upper()}",
         f"\n**Timestamp**: `{report['timestamp']}`  ",
+        f"**Model Evaluated**: `{report.get('model', settings.CHAT_MODEL)}`  ",
+        f"**Harness Version**: `{report.get('harness_version', HARNESS_VERSION)}`  ",
         f"**Run Validity**: `{report.get('validity_status', 'VALID')}`  ",
         f"**Evaluated Queries**: `{report['total_queries']}` (Valid: `{report.get('valid_queries', report['total_queries'])}`, Errors: `{report.get('error_count', 0)}`)  ",
         f"**Overall Accuracy (Valid Queries)**: `{report['accuracy_pct']}%`  \n",
@@ -524,6 +636,8 @@ def write_markdown_report(report: Dict[str, Any], file_path: Path) -> None:
         f"| **p50 Latency** | `{report['latency_p50_ms']} ms` | < 1500 ms | {'✅ PASS' if report['latency_p50_ms'] < 1500 else 'ℹ️ INFO'} |",
         f"| **p95 Latency** | `{report['latency_p95_ms']} ms` | < 3000 ms | {'✅ PASS' if report['latency_p95_ms'] < 3000 else 'ℹ️ INFO'} |",
         f"| **Average TTFT** | `{report['avg_ttft_ms']} ms` | < 1000 ms | {'✅ PASS' if report['avg_ttft_ms'] < 1000 else 'ℹ️ INFO'} |",
+        f"| **Total Prompt Tokens** | `{report.get('total_prompt_tokens', 0):,}` | Input tokens tracked | ℹ️ INFO |",
+        f"| **Total Completion Tokens** | `{report.get('total_completion_tokens', 0):,}` | Output tokens tracked | ℹ️ INFO |",
         f"| **Total Run Cost** | `${report['total_cost_usd']:.6f}` | < $0.10 | ✅ PASS |",
         f"| **Avg Cost / Query** | `${report['avg_cost_per_query_usd']:.6f}` | < $0.005 | ✅ PASS |\n",
         "## 🏷️ Category Breakdown\n",
@@ -585,6 +699,7 @@ def compare_reports(report_a_path: Path, report_b_path: Path) -> None:
 
     rows = [
         ("Run Validity", str(rep_a.get('validity_status', 'VALID')), str(rep_b.get('validity_status', 'VALID')), "N/A"),
+        ("Model", str(rep_a.get('model', 'N/A')), str(rep_b.get('model', 'N/A')), "N/A"),
         ("Infrastructure Errors", f"{rep_a.get('error_count', 0)}", f"{rep_b.get('error_count', 0)}", f"{rep_b.get('error_count', 0) - rep_a.get('error_count', 0):+d}"),
         ("Answer Accuracy (Valid)", f"{rep_a['accuracy_pct']}%", f"{rep_b['accuracy_pct']}%", f"{rep_b['accuracy_pct'] - rep_a['accuracy_pct']:+.2f}%"),
         ("Extractive FB on Ans.", f"{rep_a.get('extractive_fallback_on_answerable_count', 0)}", f"{rep_b.get('extractive_fallback_on_answerable_count', 0)}", f"{rep_b.get('extractive_fallback_on_answerable_count', 0) - rep_a.get('extractive_fallback_on_answerable_count', 0):+d}"),
@@ -593,6 +708,7 @@ def compare_reports(report_a_path: Path, report_b_path: Path) -> None:
         ("False-Fallback Rate", f"{rep_a['fallback_ffr_pct']}%", f"{rep_b['fallback_ffr_pct']}%", f"{rep_b['fallback_ffr_pct'] - rep_a['fallback_ffr_pct']:+.2f}%"),
         ("Avg Latency (ms)", f"{rep_a['latency_avg_ms']:.1f}", f"{rep_b['latency_avg_ms']:.1f}", f"{rep_b['latency_avg_ms'] - rep_a['latency_avg_ms']:+.1f}"),
         ("p95 Latency (ms)", f"{rep_a['latency_p95_ms']:.1f}", f"{rep_b['latency_p95_ms']:.1f}", f"{rep_b['latency_p95_ms'] - rep_a['latency_p95_ms']:+.1f}"),
+        ("Total Tokens", f"{rep_a.get('total_tokens', 0)}", f"{rep_b.get('total_tokens', 0)}", f"{rep_b.get('total_tokens', 0) - rep_a.get('total_tokens', 0):+d}"),
         ("Avg Cost / Query ($)", f"${rep_a['avg_cost_per_query_usd']:.6f}", f"${rep_b['avg_cost_per_query_usd']:.6f}", f"${rep_b['avg_cost_per_query_usd'] - rep_a['avg_cost_per_query_usd']:+.6f}")
     ]
 
@@ -610,8 +726,9 @@ def main():
     parser.add_argument("--baseline-v1", action="store_true", help="Run read-only evaluation of v1 baseline")
     parser.add_argument("--threshold", type=float, default=settings.SIMILARITY_THRESHOLD, help="Override similarity threshold")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of queries evaluated (for smoke tests)")
-    parser.add_argument("--resume", action="store_true", help="Resume run: reuse successful cached queries and only retry missing or ERROR queries")
+    parser.add_argument("--resume", action="store_true", help="Resume run: reuse validated cached queries and only retry missing or ERROR queries")
     parser.add_argument("--checkpoint", type=str, default=None, help="Explicit checkpoint or report path to resume from")
+    parser.add_argument("--skip-startup-check", action="store_true", help="Skip the pre-flight model ping check")
     parser.add_argument("--compare", type=str, default=None, help="Path to previous JSON report to diff against")
     parser.add_argument("--diff", nargs=2, type=str, default=None, help="Diff two existing JSON reports directly")
     args = parser.parse_args()
@@ -633,7 +750,8 @@ def main():
             similarity_threshold=args.threshold,
             limit=args.limit,
             resume=args.resume,
-            checkpoint_path=checkpoint_path
+            checkpoint_path=checkpoint_path,
+            skip_startup_check=args.skip_startup_check
         )
         current_report_json = out_dir / f"eval_{current_report['version']}_{current_report['timestamp']}.json"
         compare_reports(prior_report_path, current_report_json)
@@ -645,7 +763,8 @@ def main():
             similarity_threshold=args.threshold,
             limit=args.limit,
             resume=args.resume,
-            checkpoint_path=checkpoint_path
+            checkpoint_path=checkpoint_path,
+            skip_startup_check=args.skip_startup_check
         )
 
 

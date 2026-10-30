@@ -5,9 +5,10 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
 
+from config import settings
 from evals.judge import judge_answer
 from evals.retry import call_gemini_with_retry, is_api_failure
-from evals.run_evals import run_eval
+from evals.run_evals import HARNESS_VERSION, is_valid_cache_entry, run_eval, startup_model_check
 from generation.schemas import Citation, RAGResponse
 from telemetry.monitor import TelemetryData
 
@@ -138,7 +139,7 @@ def test_eval_excludes_error_from_accuracy_and_latency(tmp_path: Path):
 
         mock_judge.side_effect = mock_judge_impl
 
-        report = run_eval(dataset_path=dataset_file, out_dir=tmp_path / "reports")
+        report = run_eval(dataset_path=dataset_file, out_dir=tmp_path / "reports", skip_startup_check=True)
 
         # 20 queries, 1 error -> 19 valid queries
         assert report["total_queries"] == 20
@@ -186,7 +187,7 @@ def test_eval_aborts_when_error_rate_exceeds_5_percent(tmp_path: Path):
         mock_judge.return_value = {"verdict": "ERROR", "score": None, "reason": "API Failure", "judge_method": "none", "is_error": True}
 
         with pytest.raises(RuntimeError) as exc_info:
-            run_eval(dataset_path=dataset_file, out_dir=tmp_path / "reports")
+            run_eval(dataset_path=dataset_file, out_dir=tmp_path / "reports", skip_startup_check=True)
 
         assert "CRITICAL: Evaluation run aborted!" in str(exc_info.value)
         assert "exceeded 5.0% threshold" in str(exc_info.value)
@@ -230,7 +231,7 @@ def test_eval_marks_invalid_when_extractive_fallback_exceeds_5_percent(tmp_path:
          patch("evals.run_evals.judge_answer") as mock_judge:
         mock_judge.return_value = {"verdict": "PASS", "score": 1.0, "reason": "Pass", "judge_method": "llm", "is_error": False}
 
-        report = run_eval(dataset_path=dataset_file, out_dir=tmp_path / "reports")
+        report = run_eval(dataset_path=dataset_file, out_dir=tmp_path / "reports", skip_startup_check=True)
 
         assert report["is_valid"] is False
         assert "INVALID" in report["validity_status"]
@@ -268,6 +269,8 @@ def test_eval_resume_skips_successful_and_retries_errors(tmp_path: Path):
             "answer_source": "gemini",
             "judge_method": "llm",
             "judge_reason": "Correct",
+            "model": settings.CHAT_MODEL,
+            "harness_version": HARNESS_VERSION,
             "citations_precision": 1.0,
             "citations_recall": 1.0,
             "used_fallback": False,
@@ -289,6 +292,8 @@ def test_eval_resume_skips_successful_and_retries_errors(tmp_path: Path):
             "answer_source": "gemini",
             "judge_method": "none",
             "judge_reason": "API Failure",
+            "model": settings.CHAT_MODEL,
+            "harness_version": HARNESS_VERSION,
             "citations_precision": None,
             "citations_recall": None,
             "used_fallback": True,
@@ -322,7 +327,8 @@ def test_eval_resume_skips_successful_and_retries_errors(tmp_path: Path):
             dataset_path=dataset_file,
             out_dir=tmp_path / "reports",
             resume=True,
-            checkpoint_path=chk_file
+            checkpoint_path=chk_file,
+            skip_startup_check=True
         )
 
         # Q01 must NOT have been re-evaluated (it was reused from cache)
@@ -338,3 +344,168 @@ def test_eval_resume_skips_successful_and_retries_errors(tmp_path: Path):
         assert report["valid_queries"] == 4
         assert report["error_count"] == 0
         assert report["accuracy_pct"] == 100.0
+
+
+def test_is_valid_cache_entry_function():
+    target_model = settings.CHAT_MODEL
+    valid_entry = {
+        "id": "Q01",
+        "answer_source": "gemini",
+        "judge_method": "llm",
+        "model": target_model,
+        "harness_version": HARNESS_VERSION,
+        "candidate_answer": "Valid answer",
+        "is_error": False,
+        "verdict": "PASS"
+    }
+
+    # 1. Valid entry passes
+    assert is_valid_cache_entry(valid_entry, target_model, HARNESS_VERSION) is True
+
+    # 2. Missing answer_source rejected
+    entry_no_ans_src = dict(valid_entry)
+    del entry_no_ans_src["answer_source"]
+    assert is_valid_cache_entry(entry_no_ans_src, target_model, HARNESS_VERSION) is False
+
+    # 3. Invalid answer_source rejected
+    entry_bad_ans_src = dict(valid_entry, answer_source="unknown_source")
+    assert is_valid_cache_entry(entry_bad_ans_src, target_model, HARNESS_VERSION) is False
+
+    # 4. Missing judge_method rejected
+    entry_no_judge = dict(valid_entry)
+    del entry_no_judge["judge_method"]
+    assert is_valid_cache_entry(entry_no_judge, target_model, HARNESS_VERSION) is False
+
+    # 5. Missing model rejected
+    entry_no_model = dict(valid_entry)
+    del entry_no_model["model"]
+    assert is_valid_cache_entry(entry_no_model, target_model, HARNESS_VERSION) is False
+
+    # 6. Mismatched model rejected
+    entry_wrong_model = dict(valid_entry, model="different-model")
+    assert is_valid_cache_entry(entry_wrong_model, target_model, HARNESS_VERSION) is False
+
+    # 7. Missing harness_version rejected
+    entry_no_ver = dict(valid_entry)
+    del entry_no_ver["harness_version"]
+    assert is_valid_cache_entry(entry_no_ver, target_model, HARNESS_VERSION) is False
+
+    # 8. Older or different harness_version rejected
+    entry_old_ver = dict(valid_entry, harness_version="2.0.0")
+    assert is_valid_cache_entry(entry_old_ver, target_model, HARNESS_VERSION) is False
+
+    # 9. Infrastructure error entry rejected
+    entry_err = dict(valid_entry, is_error=True)
+    assert is_valid_cache_entry(entry_err, target_model, HARNESS_VERSION) is False
+    entry_sys_err = dict(valid_entry, candidate_answer="SYSTEM ERROR")
+    assert is_valid_cache_entry(entry_sys_err, target_model, HARNESS_VERSION) is False
+
+
+def test_cached_entry_without_answer_source_is_rejected(tmp_path: Path):
+    """Proves that any cached entry lacking answer_source is rejected and re-run under --resume."""
+    dataset_file = tmp_path / "test_no_ans_src_dataset.jsonl"
+    with open(dataset_file, "w", encoding="utf-8") as f:
+        f.write(json.dumps({
+            "id": "Q01",
+            "question": "What is the engine spec?",
+            "ground_truth_answer": "B58 3.0L inline-six engine",
+            "answerable": True,
+            "category": "specs"
+        }) + "\n")
+
+    # Cached checkpoint lacks 'answer_source'
+    chk_file = tmp_path / "checkpoint_missing_ans_src.json"
+    checkpoint_data = [
+        {
+            "id": "Q01",
+            "category": "specs",
+            "question": "What is the engine spec?",
+            "answerable": True,
+            "candidate_answer": "Stale cached answer",
+            "ground_truth_answer": "B58 3.0L inline-six engine",
+            "passed": True,
+            "verdict": "PASS",
+            "is_error": False,
+            "error_message": None,
+            # 'answer_source' is intentionally missing!
+            "judge_method": "llm",
+            "model": settings.CHAT_MODEL,
+            "harness_version": HARNESS_VERSION,
+            "citations_precision": 1.0,
+            "citations_recall": 1.0,
+            "used_fallback": False,
+            "duration_ms": 100.0,
+            "ttft_ms": 50.0,
+            "cost_usd": 0.0001
+        }
+    ]
+    with open(chk_file, "w", encoding="utf-8") as f:
+        json.dump(checkpoint_data, f, indent=2)
+
+    evaluated_queries = []
+
+    def mock_generate_rag(query: str, **kwargs):
+        evaluated_queries.append(query)
+        return RAGResponse(
+            answer="B58 3.0L inline-six engine",
+            citations=[],
+            confidence=0.9,
+            used_fallback=False,
+            telemetry=TelemetryData(duration_s=0.2, ttft_ms=50.0, computed_cost_usd=0.0001),
+            answer_source="gemini",
+            is_error=False
+        )
+
+    with patch("evals.run_evals.generate_rag_response", side_effect=mock_generate_rag), \
+         patch("evals.run_evals.judge_answer") as mock_judge:
+        mock_judge.return_value = {"verdict": "PASS", "score": 1.0, "reason": "Correct", "judge_method": "llm", "is_error": False}
+
+        report = run_eval(
+            dataset_path=dataset_file,
+            out_dir=tmp_path / "reports",
+            resume=True,
+            checkpoint_path=chk_file,
+            skip_startup_check=True
+        )
+
+        # Because answer_source was missing, Q01 was REJECTED from cache and re-evaluated
+        assert "What is the engine spec?" in evaluated_queries
+        assert report["total_queries"] == 1
+        assert report["valid_queries"] == 1
+        assert report["detailed_results"][0]["candidate_answer"] == "B58 3.0L inline-six engine"
+        assert report["detailed_results"][0]["answer_source"] == "gemini"
+
+
+def test_startup_model_check():
+    # 1. Missing api key raises RuntimeError
+    with pytest.raises(RuntimeError, match="GEMINI_API_KEY environment variable is missing"):
+        startup_model_check("gemini-1.5-flash", "")
+
+    # 2. 404 Not Found raises clear abort message
+    with patch("google.generativeai.GenerativeModel") as mock_model_cls:
+        mock_instance = MagicMock()
+        mock_instance.generate_content.side_effect = Exception("404 models/gemini-old is not found")
+        mock_model_cls.return_value = mock_instance
+
+        with pytest.raises(RuntimeError) as exc_info:
+            startup_model_check("gemini-old", "fake_key")
+        assert "STARTUP CHECK FAILED: Model 'gemini-old' is not found (404)" in str(exc_info.value)
+
+    # 3. 429 Quota Exhausted raises clear abort message
+    with patch("google.generativeai.GenerativeModel") as mock_model_cls:
+        mock_instance = MagicMock()
+        mock_instance.generate_content.side_effect = Exception("429 Resource has been exhausted (check quota)")
+        mock_model_cls.return_value = mock_instance
+
+        with pytest.raises(RuntimeError) as exc_info:
+            startup_model_check("gemini-1.5-flash", "fake_key")
+        assert "STARTUP CHECK FAILED: API quota exceeded (429)" in str(exc_info.value)
+
+    # 4. Successful call passes without exception
+    with patch("google.generativeai.GenerativeModel") as mock_model_cls:
+        mock_instance = MagicMock()
+        mock_instance.generate_content.return_value = MagicMock(text="pong")
+        mock_model_cls.return_value = mock_instance
+
+        # Should not raise
+        startup_model_check("gemini-1.5-flash", "fake_key")

@@ -1,0 +1,24 @@
+{
+  "v1": {
+    "accuracy_pct": 0.0,
+    "citation_precision": 100.0,
+    "citation_recall": 25.0,
+    "fallback_tpr_pct": 0.0,
+    "fallback_ffr_pct": 0.0,
+    "latency_avg_ms": 398.2633333333333,
+    "latency_p95_ms": 470.6366666666666,
+    "avg_cost_per_query_usd": 0.0,
+    "oos_cost_usd": 0.0
+  },
+  "v2": {
+    "accuracy_pct": 90.0,
+    "citation_precision": 100.0,
+    "citation_recall": 98.75,
+    "fallback_tpr_pct": 100.0,
+    "fallback_ffr_pct": 0.0,
+    "latency_avg_ms": 812.7666666666665,
+    "latency_p95_ms": 1016.1266666666667,
+    "avg_cost_per_query_usd": 1.3e-05,
+    "oos_cost_usd": 0.0
+  }
+}

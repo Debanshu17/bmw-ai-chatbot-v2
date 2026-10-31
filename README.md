@@ -73,14 +73,16 @@ Evaluated on the 40-question technical benchmark ([`evals/dataset.jsonl`](evals/
 | **Citation Recall** | 25.0% | 96.25% | **98.75%** | $\ge 80.0\%$ | Grounded source coverage |
 | **Fallback True-Positive Rate (TPR)** | 0.0% (0/10) | 100.0% (10/10) | **100.0%** (10/10) | $\ge 90.0\%$ | Out-of-scope refusal compliance |
 | **False-Fallback Rate (FFR)** | 0.0% (0/30) | 3.33% (1/30) | **0.0%** (0/30) | $\le 10.0\%$ | Avoid refusing valid questions |
-| **Compute Latency (Answerable Only)** | | | | | *(Pacing excluded from all)* |
-| **— Average Latency (Answerable Only)** | 5,453.9 ms | 7,777.3 ms | 7,355.5 ms | Operational tracking | Pure compute duration |
-| **— Median (p50) Latency (Answerable Only)** | 3,999.2 ms | 7,838.0 ms | 8,190.8 ms | Operational tracking | Median execution time |
-| **— p95 Latency (Answerable Only)** | 13,606.1 ms | 8,136.4 ms | 15,208.2 ms | Operational tracking | 95th percentile tail |
+| **Compute Latency (Answerable Only)** | | | | | *(Pacing excluded from baseline & final v2)* |
+| **— Average Latency (Answerable Only)** | 5,453.9 ms | *[Not comparable]*\* | **7,355.5 ms** | Operational tracking | Pure compute duration |
+| **— Median (p50) Latency (Answerable Only)** | 3,999.2 ms | *[Not comparable]*\* | **8,190.8 ms** | Operational tracking | Median execution time |
+| **— p95 Latency (Answerable Only)** | 13,606.1 ms | *[Not comparable]*\* | **15,208.2 ms** | Operational tracking | 95th percentile tail |
 | **Average Cost / Query (Overall)** | \$0.000668 | \$0.000628 | **\$0.000627** | $< \$0.005$ | Theoretical projection |
 | **— Average Cost / Query (Answerable Only)** | \$0.000668 | \$0.000837 | **\$0.000836** | $< \$0.005$ | Context-loaded queries |
 | **Answer Source: Genuine Gemini Generation** | 40 / 40 (100%) | 40 / 40 (100%) | **40 / 40 (100%)** | 100% on answerable | Zero extractive fallback used |
 | **Judge Method: LLM-as-a-Judge** | 40 / 40 (100%) | 30 / 30 on answerable | **30 / 30 on answerable** | Strict rubric | 100% LLM on answerable (10/10 fuzzy on OOS) |
+
+*\*Note on v2 Initial Run Latency: v2 Initial Run latency cells are marked not comparable because they were measured with the rate-limiter pause inside the timer (since fixed in the final run where pacing sleep is enforced strictly outside the timed region).*
 
 ### 🐛 Bug Found by the Evaluation Harness: Citation Key Resolution
 During diagnostic inspection of the initial benchmark run ([`reports/eval_v2_production_20261031_011115.json`](reports/eval_v2_production_20261031_011115.json)), the automated evaluation harness uncovered a false refusal on query `eval_003` (*"How is the intake air cooled in the S58 forced induction system?"*), causing a 3.33% False-Fallback Rate (28/30 answerable accuracy).
@@ -111,10 +113,13 @@ During diagnostic inspection of the initial benchmark run ([`reports/eval_v2_pro
 3. **Run-to-Run Variance on Model Generation (`eval_028`)**:
    Between the initial run (95.0% accuracy, 28/30 answerable) and the post-fix run (100.0% accuracy, 30/30 answerable), `eval_028` (M xDrive torque dynamics) shifted from FAIL to PASS. This change was **not caused by the citation validator fix**, but is the result of natural run-to-run variance in LLM generation phrasing (the model generated a slightly more complete explanation of continuous multi-plate clutch transfer case dynamics that met the judge rubric).
 
-4. **Shared LLM-as-a-Judge Architecture (Potential Bias)**:
+4. **Cross-Run Latency Comparability & Network Variance**:
+   Latency was measured on different days and under varying network conditions across runs (including a documented external network incident where API socket connections dropped during queries 5 and 6). Consequently, the v2-vs-baseline latency comparison is **indicative only**, reflecting real-world API endpoint variability rather than a strictly controlled synchronous laboratory benchmark.
+
+5. **Shared LLM-as-a-Judge Architecture (Potential Bias)**:
    The evaluation harness uses `gemini-3.5-flash-lite` both for response generation and as the judge model in `evals/judge.py`. While the judge operates under a rigid, zero-temperature factual rubric outputting structured JSON, using the same model family for grading creates potential self-preference bias or shared blind spots. Future iterations will incorporate cross-provider judges (e.g., Claude 3.5 Sonnet or GPT-4o) to ensure independent verification.
 
-5. **Projected Financial Pricing vs. Free-Tier Execution**:
+6. **Projected Financial Pricing vs. Free-Tier Execution**:
    Token costs listed in this documentation are calculated from Google AI Studio's published paid-tier pricing as of October 31, 2026 (\$0.30 / 1M input tokens, \$2.50 / 1M output tokens). Development, testing, and automated benchmarking were executed exclusively within Google's Free Tier with rate-limiting backoff, resulting in **\$0.00 of actual financial spend**.
 
 ### Graceful-Degradation Extractive Fallback Mode

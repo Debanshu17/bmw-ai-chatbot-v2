@@ -26,7 +26,12 @@ These bullets adhere strictly to the **Google XYZ format** (*"Accomplished [X] a
 | **Citation Recall** | 25.0% | **98.75%** | **+73.75%** |
 | **Fallback True-Positive Rate (TPR)** | 0.0% (0/10) | **100.0%** (10/10) | **+100.0%** |
 | **False-Fallback Rate (FFR)** | 0.0% (0/30) | **0.0%** (0/30) | **0.0%** |
-| **Median (p50) Compute Latency** | 3,999.2 ms | **4,260.8 ms** *(Ans: 8,190.8 ms)* | +261.6 ms |
-| **Average Compute Latency** | 5,453.9 ms | **5,660.7 ms** *(Ans: 7,355.5 ms)* | +206.8 ms |
+| **Answerable Median (p50) Compute Latency** | 3,999.2 ms | **8,190.8 ms** | +4,191.6 ms |
+| **Answerable Average Compute Latency** | 5,453.9 ms | **7,355.5 ms** | +1,901.6 ms |
+| **Answerable p95 Compute Latency** | 13,606.1 ms | **15,208.2 ms** | +1,602.1 ms |
+| **Average Cost / Query (Overall)** | \$0.000668 | **\$0.000627** | -\$0.000041 |
+| **— Average Cost / Query (Answerable Only)** | \$0.000668 | **\$0.000836** | +\$0.000168 |
 | **Infrastructure Errors** | 0 (0.0%) | **0 (0.0%)** | Zero errors |
 | **Extractive Fallback Used** | 0 / 40 | **0 / 40 (0%)** | 100% genuine LLM generation |
+
+*Latency & Overhead Note: Across answerable questions, v2 is computationally heavier and slower than the unaugmented baseline due to 3072-dimensional query embedding generation, vector similarity retrieval, context expansion (~850 vs ~25 prompt tokens), and in-code citation provenance validation. In exchange, v2 achieves 100.0% factual accuracy (vs. 53.3% baseline), 98.75% citation recall (vs. 25.0% baseline), and zero hallucinations.*

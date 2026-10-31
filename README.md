@@ -58,60 +58,61 @@ flowchart TD
 Evaluated on the 40-question technical benchmark ([`evals/dataset.jsonl`](evals/dataset.jsonl)) using **Google Gemini 3.5 Flash Lite** (`gemini-3.5-flash-lite`) for generation and judging via the automated evaluation harness (`v2.1.0`).
 
 - **Closed-book baseline report**: [`reports/eval_v1_baseline_20261031_010339.json`](reports/eval_v1_baseline_20261031_010339.json)
-- **v2 Production RAG report (Validated)**: [`reports/eval_v2_production_20261031_133931.json`](reports/eval_v2_production_20261031_133931.json) *(Prior run before validator fix: [`reports/eval_v2_production_20261031_011115.json`](reports/eval_v2_production_20261031_011115.json))*
-- **Dedicated latency benchmarks (pacing excluded)**: [`reports/eval_v1_latency_bench_20261031.json`](reports/eval_v1_latency_bench_20261031.json) and [`reports/eval_v2_latency_bench_20261031.json`](reports/eval_v2_latency_bench_20261031.json)
+- **v2 Production RAG (Initial Run, Before Citation Fix)**: [`reports/eval_v2_production_20261031_011115.json`](reports/eval_v2_production_20261031_011115.json)
+- **v2 Production RAG (Final Run, After Citation Fix)**: [`reports/eval_v2_production_20261031_133931.json`](reports/eval_v2_production_20261031_133931.json)
+- **Dedicated baseline latency report (pacing excluded)**: [`reports/eval_v1_latency_bench_20261031.json`](reports/eval_v1_latency_bench_20261031.json)
 
-| Evaluation Metric | Closed-Book Baseline<br>*(Plain Gemini, No Document Access)* | v2 Production RAG<br>*(Retrieval + Dual Gating)* | Benchmark Target | Metric Focus |
-| :--- | :---: | :---: | :---: | :--- |
-| **Run Validity** | **VALID** | **VALID** | Valid (Errors $\le 5\%$) | Infrastructure stability |
-| **Infrastructure Errors** | 0 (0.0%) | 0 (0.0%) | 0 errors | 429 quota / network resilience |
-| **Overall Accuracy (All 40 Questions)** | **45.0%** (18/40) | **100.0%** (40/40) | $\ge 85.0\%$ | Macro system correctness |
-| **— Answerable Questions Accuracy (30 Qs)** | **53.3%** (16/30) | **100.0%** (30/30) | $\ge 85.0\%$ | Factual grounding & recall |
-| **— Out-of-Scope Questions Accuracy (10 Qs)** | **20.0%** (2/10) | **100.0%** (10/10) | $\ge 90.0\%$ | Hallucination prevention |
-| **Citation Precision** | 100.0% | **100.0%** | $\ge 90.0\%$ | Provenance authenticity |
-| **Citation Recall** | 25.0% | **98.75%** | $\ge 80.0\%$ | Grounded source coverage |
-| **Fallback True-Positive Rate (TPR)** | 0.0% (0/10) | **100.0%** (10/10) | $\ge 90.0\%$ | Out-of-scope refusal compliance |
-| **False-Fallback Rate (FFR)** | 0.0% (0/30) | **0.0%** (0/30) | $\le 10.0\%$ | Avoid refusing valid questions |
-| **Answerable Latency (Pure Compute, Pacing Excluded)** | | | | |
-| **— Average Latency (Answerable)** | 5,453.9 ms | **7,355.5 ms** | Operational tracking | Pure compute (pacing excluded) |
-| **— Median (p50) Latency (Answerable)** | 3,999.2 ms | **8,190.8 ms** *(Overall p50: 4,260.8 ms)* | Operational tracking | Median execution time |
-| **— p95 Latency (Answerable)** | 13,606.1 ms | **15,208.2 ms** *(Overall p95: 14,825.4 ms)* | Operational tracking | 95th percentile tail |
-| **Average Cost / Query (Overall)** | \$0.000668 | **\$0.000627** | $< \$0.005$ | Theoretical projection |
-| **— Average Cost / Query (Answerable Only)** | \$0.000668 | **\$0.000836** | $< \$0.005$ | Context-loaded queries |
-| **Answer Source: Genuine Gemini Generation** | 40 / 40 (100%) | **40 / 40 (100%)** | 100% on answerable | Zero extractive fallback used |
-| **Judge Method: LLM-as-a-Judge** | 40 / 40 (100%) | **30 / 30 on answerable** | Strict rubric | 100% LLM on answerable (10/10 fuzzy on out-of-scope) |
+| Evaluation Metric | Closed-Book Baseline<br>*(Plain Gemini, No Docs)* | v2 Initial Run<br>*(Before Citation Fix)* | v2 Final Run<br>*(After Citation Fix)* | Benchmark Target | Metric Focus |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| **Run Validity** | **VALID** | **VALID** | **VALID** | Valid (Errors $\le 5\%$) | Infrastructure stability |
+| **Infrastructure Errors** | 0 (0.0%) | 0 (0.0%) | 0 (0.0%) | 0 errors | 429 quota / network resilience |
+| **Overall Accuracy (All 40 Qs)** | **45.0%** (18/40) | **95.0%** (38/40) | **100.0%** (40/40) | $\ge 85.0\%$ | Macro system correctness |
+| **— Answerable Accuracy (30 Qs)** | **53.3%** (16/30) | **93.3%** (28/30) | **100.0%** (30/30) | $\ge 85.0\%$ | Factual grounding & recall |
+| **— Out-of-Scope Accuracy (10 Qs)** | **20.0%** (2/10) | **100.0%** (10/10) | **100.0%** (10/10) | $\ge 90.0\%$ | Hallucination prevention |
+| **Citation Precision** | 100.0% | 100.0% | **100.0%** | $\ge 90.0\%$ | Provenance authenticity |
+| **Citation Recall** | 25.0% | 96.25% | **98.75%** | $\ge 80.0\%$ | Grounded source coverage |
+| **Fallback True-Positive Rate (TPR)** | 0.0% (0/10) | 100.0% (10/10) | **100.0%** (10/10) | $\ge 90.0\%$ | Out-of-scope refusal compliance |
+| **False-Fallback Rate (FFR)** | 0.0% (0/30) | 3.33% (1/30) | **0.0%** (0/30) | $\le 10.0\%$ | Avoid refusing valid questions |
+| **Compute Latency (Answerable Only)** | | | | | *(Pacing excluded from all)* |
+| **— Average Latency (Answerable Only)** | 5,453.9 ms | 7,777.3 ms | 7,355.5 ms | Operational tracking | Pure compute duration |
+| **— Median (p50) Latency (Answerable Only)** | 3,999.2 ms | 7,838.0 ms | 8,190.8 ms | Operational tracking | Median execution time |
+| **— p95 Latency (Answerable Only)** | 13,606.1 ms | 8,136.4 ms | 15,208.2 ms | Operational tracking | 95th percentile tail |
+| **Average Cost / Query (Overall)** | \$0.000668 | \$0.000628 | **\$0.000627** | $< \$0.005$ | Theoretical projection |
+| **— Average Cost / Query (Answerable Only)** | \$0.000668 | \$0.000837 | **\$0.000836** | $< \$0.005$ | Context-loaded queries |
+| **Answer Source: Genuine Gemini Generation** | 40 / 40 (100%) | 40 / 40 (100%) | **40 / 40 (100%)** | 100% on answerable | Zero extractive fallback used |
+| **Judge Method: LLM-as-a-Judge** | 40 / 40 (100%) | 30 / 30 on answerable | **30 / 30 on answerable** | Strict rubric | 100% LLM on answerable (10/10 fuzzy on OOS) |
 
 ### 🐛 Bug Found by the Evaluation Harness: Citation Key Resolution
-During diagnostic inspection of the initial benchmark run ([`reports/eval_v2_production_20261031_011115.json`](reports/eval_v2_production_20261031_011115.json)), the automated evaluation harness uncovered a false refusal on query `eval_003` (*"How is the intake air cooled in the S58 forced induction system?"*), causing a 3.33% False-Fallback Rate.
+During diagnostic inspection of the initial benchmark run ([`reports/eval_v2_production_20261031_011115.json`](reports/eval_v2_production_20261031_011115.json)), the automated evaluation harness uncovered a false refusal on query `eval_003` (*"How is the intake air cooled in the S58 forced induction system?"*), causing a 3.33% False-Fallback Rate (28/30 answerable accuracy).
 
 - **Root Cause Uncovered by Logs**: Retrieval had succeeded (top similarity score was 0.7566 > 0.72) and Gemini generated an accurate answer and quote, but cited `"chunk_id": "fd73eb6cf193_1"` instead of the composite key `"bmw_m_s58_engine_technical_guide.md#fd73eb6cf193_1"`. Because `validate_and_filter_citations()` performed strict dictionary key lookup, the citation was stripped as unrecognized (`valid_citations = []`), triggering Gate 2 to enforce fallback due to zero verified citations.
 - **The Architectural Fix**: Updated `validate_and_filter_citations()` in [`generation/validator.py`](generation/validator.py) to resolve both composite keys (`"file.md#id"`) and bare ID suffixes (`"id"`), resolving a bare ID to the single matching retrieved chunk and rejecting ambiguous or fabricated IDs. Added 5 unit tests in [`tests/test_citations.py`](tests/test_citations.py).
-- **Post-Fix Benchmark Result**: Re-evaluating the v2 pipeline across all 40 queries ([`reports/eval_v2_production_20261031_133931.json`](reports/eval_v2_production_20261031_133931.json)) resolved the false fallback (FFR dropped from 3.33% to **0.0%**), elevating overall accuracy from 95.0% to **100.0% (40/40)** and citation recall from 96.25% to **98.75%**.
+- **Post-Fix Benchmark Result**: Re-evaluating the v2 pipeline across all 40 queries ([`reports/eval_v2_production_20261031_133931.json`](reports/eval_v2_production_20261031_133931.json)) resolved the false fallback (FFR dropped from 3.33% to **0.0%**), elevating overall accuracy from 95.0% (38/40) to **100.0% (40/40)** and answerable accuracy from 93.3% (28/30) to **100.0% (30/30)** with citation recall increasing to **98.75%**.
 
-> **Important Latency & Cost Context**:
-> - **No Cheaper / Faster Claim**: v2 is not claimed to be inherently cheaper or faster than the baseline. Answering technical questions with RAG requires retrieving and injecting retrieved technical context (~850 prompt tokens per query in v2 vs. ~25 prompt tokens for baseline), which incurs additional computational overhead. While Gate 1 cuts cost and latency on out-of-scope queries (0 token cost, < 20ms execution) by blocking them before the LLM, answerable questions cost slightly more (\$0.000836 vs \$0.000668). The primary value of v2 lies in factual grounding (100.0% vs 53.3% accuracy on answerable questions) and verifiable source citations (98.75% recall vs 25.0%).
-> - **Rate-Limiting vs. Pure Compute**: To respect Google AI Studio quotas, the full benchmark enforced client-side rate-limiting (~7.5s between calls). The latency numbers above are drawn from the dedicated latency benchmark where pacing pauses were executed strictly outside the timed measurement block.
+> **Latency & Computational Tradeoff Analysis**:
+> - **v2 Is Slower on Answerable Queries**: Across answerable queries, v2 is computationally heavier and slower than the closed-book baseline (median latency 8,190.8 ms vs. 3,999.2 ms; average latency 7,355.5 ms vs. 5,453.9 ms). This latency increase is expected and directly caused by:
+>   1. **Dense Vector Embedding**: Generating a 3072-dimensional vector embedding for the query via `gemini-embedding-001`.
+>   2. **Vector Similarity Retrieval**: Computing cosine similarity scores across candidate chunks and sorting top-k results.
+>   3. **Expanded Context Payload**: Injecting ~850 prompt tokens of retrieved technical documentation (compared to ~25 prompt tokens for the unaugmented baseline).
+>   4. **Structured Generation & Provenance Verification**: Synthesizing structured JSON with citations and executing in-code substring provenance checks (`validate_and_filter_citations`) and Gate 2 guardrail checks before returning the response.
+>   - *The Core Engineering Tradeoff*: v2 intentionally trades execution latency for factual correctness (100.0% vs. 53.3% accuracy on answerable questions), high citation recall (98.75% vs. 25.0%), and zero hallucinations.
+> - **Out-of-Scope Queries**: For queries outside the documentation scope, Gate 1 short-circuits the pipeline before the LLM, returning in < 20 ms at $0 token cost.
 
 ---
 
 ## ⚠️ Limitations
 
-1. **Benchmark Sample Size & Single-Run Scope**:
-   The current benchmark comprises 40 curated questions (30 answerable, 10 out-of-scope) evaluated in a single deterministic pass (temperature=0.0). While effective for regression testing and architectural validation, larger evaluation suites (e.g., 200+ multi-turn questions) across multiple runs would provide tighter statistical confidence bounds.
+1. **Benchmark Sample Size & Single-Run Scope (Small Dataset)**:
+   The evaluation suite is limited to a curated 40-question single-run benchmark (30 answerable, 10 out-of-scope) evaluated at temperature=0.0. A 40-question benchmark is inherently small: single-item flips produce a 2.5% delta overall (and 3.33% on answerable questions). While effective for rapid regression catching, larger evaluation suites (e.g., 200+ multi-turn questions) evaluated across multiple runs with confidence intervals are required for comprehensive statistical power.
 
-2. **Shared LLM-as-a-Judge Architecture (Potential Bias)**:
-   The evaluation harness uses `gemini-3.5-flash-lite` both for response generation and as the judge model in `evals/judge.py`. While the judge operates under a rigid, zero-temperature factual rubric outputting structured JSON, using the same model family for grading creates potential self-preference bias or shared blind spots. Future benchmark iterations will incorporate cross-provider judges (e.g., Claude 3.5 Sonnet or GPT-4o) to ensure independent verification.
+2. **Benchmark Circularity & In-Sample Bug Discovery**:
+   The citation ID mismatch bug (`eval_003`) was discovered, diagnosed, and validated using this exact same 40-question benchmark. While the implemented fix is architecturally generalized (resolving any valid bare ID suffix to its unique retrieved chunk while rejecting ambiguous or fabricated IDs with strict unit test coverage), modifying logic in response to benchmark failures introduces potential circular validation / in-sample overfitting bias. Evaluating the pipeline on a separate, held-out test suite is essential for unbiased validation.
 
-3. **Evolution of Benchmark Edge Cases & Architectural Remediations**:
-   The final production benchmark run achieved **100.0% accuracy (40/40)** with 0 failed queries. Analysis of edge cases in earlier benchmark iterations drove key architectural hardenings:
-   - **`eval_003` (Citation Key Resolution)**: Initially flagged as a false refusal because the LLM omitted the document filename prefix in the citation `chunk_id`. Upgrading `validate_and_filter_citations()` to resolve both composite keys and bare ID suffixes eliminated this failure, dropping the False-Fallback Rate to 0.0% and lifting answerable accuracy to 100.0%.
-   - **`eval_028` (M xDrive 4WD vs 2WD Torque Dynamics)**: In earlier runs, subtle variations in describing differential pre-loading versus slip-reactive engagement caused judge divergence. In the final run, Gemini 3.5 Flash Lite generated a comprehensive answer capturing both the continuous multi-plate clutch transfer case and DSC decoupling, which the LLM judge validated with a PASS.
-   - *Future Enhancements*: Implementing **reranking** (e.g., Cohere or Flash Rerank) and **hybrid search** (BM25 + dense vectors) will further boost retrieval resilience on larger corpus scales.
+3. **Run-to-Run Variance on Model Generation (`eval_028`)**:
+   Between the initial run (95.0% accuracy, 28/30 answerable) and the post-fix run (100.0% accuracy, 30/30 answerable), `eval_028` (M xDrive torque dynamics) shifted from FAIL to PASS. This change was **not caused by the citation validator fix**, but is the result of natural run-to-run variance in LLM generation phrasing (the model generated a slightly more complete explanation of continuous multi-plate clutch transfer case dynamics that met the judge rubric).
 
-4. **Latency Tail Outliers on Queries 5 & 6 (External Network Incident)**:
-   During the automated latency benchmark pass across the 30 answerable queries, two queries (`eval_005` and `eval_006`) experienced severe tail latencies of 57.1s and 60.0s. Inspection of connection diagnostics identified this as an **external network socket incident** (Google API socket connection drops / WinError 10054 / WSA 995, followed by 504 Deadline Exceeded), triggering multiple client-side exponential backoff retries before succeeding.
-   - *Isolated Re-run*: Re-running only `eval_005` and `eval_006` under normal network conditions measured clean compute latencies of **2,011.5 ms** for `eval_005` (vs 3,272.1 ms baseline) and **2,426.0 ms** for `eval_006` (vs 965.8 ms baseline), averaging **2,218.8 ms**.
-   - *Adjusted Baseline*: Incorporating these re-run numbers across the 30 answerable queries brings v2 mean compute latency from 8,548.6 ms down to **4,791.5 ms** (with a median p50 of **2,175.8 ms** and p95 of **17,951.2 ms**).
+4. **Shared LLM-as-a-Judge Architecture (Potential Bias)**:
+   The evaluation harness uses `gemini-3.5-flash-lite` both for response generation and as the judge model in `evals/judge.py`. While the judge operates under a rigid, zero-temperature factual rubric outputting structured JSON, using the same model family for grading creates potential self-preference bias or shared blind spots. Future iterations will incorporate cross-provider judges (e.g., Claude 3.5 Sonnet or GPT-4o) to ensure independent verification.
 
 5. **Projected Financial Pricing vs. Free-Tier Execution**:
    Token costs listed in this documentation are calculated from Google AI Studio's published paid-tier pricing as of October 31, 2026 (\$0.30 / 1M input tokens, \$2.50 / 1M output tokens). Development, testing, and automated benchmarking were executed exclusively within Google's Free Tier with rate-limiting backoff, resulting in **\$0.00 of actual financial spend**.

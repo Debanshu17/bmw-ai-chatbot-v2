@@ -6,3 +6,4 @@ reports/*.json
 reports/*.md
 telemetry/logs/*.jsonl
 data/vector_store/*.json
+scratch/

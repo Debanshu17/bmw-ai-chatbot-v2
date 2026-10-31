@@ -1,0 +1,312 @@
+{
+  "benchmark": "v2_production_answerable_latency",
+  "model": "gemini-3.5-flash-lite",
+  "sample_size": 30,
+  "rate_limiting_excluded_from_timer": true,
+  "avg_latency_ms": 8548.64,
+  "p50_latency_ms": 2208.1,
+  "p95_latency_ms": 41453.59,
+  "avg_ttft_ms": 8548.31,
+  "results": [
+    {
+      "id": "eval_001",
+      "question": "What is the displacement, bore, and stroke of the BMW S58 engine?",
+      "duration_ms": 5166.6,
+      "ttft_ms": 5166.01,
+      "is_error": false,
+      "prompt_tokens": 856,
+      "completion_tokens": 247,
+      "answer_preview": "The BMW S58 engine has a displacement of 3.0 liters (2,993 c"
+    },
+    {
+      "id": "eval_002",
+      "question": "What is the maximum boost pressure delivered by the S58 turbochargers on Competition and CS models?",
+      "duration_ms": 1666.0,
+      "ttft_ms": 1665.75,
+      "is_error": false,
+      "prompt_tokens": 851,
+      "completion_tokens": 196,
+      "answer_preview": "On Competition and CS models, the electronic wastegate contr"
+    },
+    {
+      "id": "eval_003",
+      "question": "How is the intake air cooled in the S58 forced induction system?",
+      "duration_ms": 3002.0,
+      "ttft_ms": 3001.27,
+      "is_error": false,
+      "prompt_tokens": 836,
+      "completion_tokens": 208,
+      "answer_preview": "The intake air is cooled via an indirect charge air cooling "
+    },
+    {
+      "id": "eval_004",
+      "question": "What maximum fuel rail pressure does the S58 High Precision Injection system operate at?",
+      "duration_ms": 19786.3,
+      "ttft_ms": 19786.01,
+      "is_error": false,
+      "prompt_tokens": 916,
+      "completion_tokens": 208,
+      "answer_preview": "The S58 High Precision Injection (HPI) direct fuel injection"
+    },
+    {
+      "id": "eval_005",
+      "question": "How does VALVETRONIC technology regulate valve lift on the S58 engine?",
+      "duration_ms": 57142.8,
+      "ttft_ms": 57142.8,
+      "is_error": false,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "answer_preview": "I couldn't find this in the provided documents, so I can't a"
+    },
+    {
+      "id": "eval_006",
+      "question": "What is the redline and compression ratio of the BMW S58 powerplant?",
+      "duration_ms": 60009.8,
+      "ttft_ms": 60009.8,
+      "is_error": false,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "answer_preview": "I couldn't find this in the provided documents, so I can't a"
+    },
+    {
+      "id": "eval_007",
+      "question": "How is the cylinder block constructed to withstand high combustion pressures in the S58?",
+      "duration_ms": 8413.3,
+      "ttft_ms": 8412.99,
+      "is_error": false,
+      "prompt_tokens": 916,
+      "completion_tokens": 189,
+      "answer_preview": "The cylinder block features a closed-deck design that provid"
+    },
+    {
+      "id": "eval_008",
+      "question": "Explain how the S58 engine lubrication system prevents oil starvation under hard track driving.",
+      "duration_ms": 11392.3,
+      "ttft_ms": 11391.83,
+      "is_error": false,
+      "prompt_tokens": 861,
+      "completion_tokens": 391,
+      "answer_preview": "The S58 engine lubrication system prevents oil starvation un"
+    },
+    {
+      "id": "eval_009",
+      "question": "What is the total engine oil capacity and recommended oil specification for the S58?",
+      "duration_ms": 6072.0,
+      "ttft_ms": 6071.7,
+      "is_error": false,
+      "prompt_tokens": 824,
+      "completion_tokens": 200,
+      "answer_preview": "The total engine oil capacity of the S58 is 7.0 liters, and "
+    },
+    {
+      "id": "eval_010",
+      "question": "Which cylinders are fed by Turbocharger 1 and Turbocharger 2 on the S58?",
+      "duration_ms": 22277.9,
+      "ttft_ms": 22277.59,
+      "is_error": false,
+      "prompt_tokens": 859,
+      "completion_tokens": 206,
+      "answer_preview": "Turbocharger 1 supplies compressed air to cylinders 1, 2, an"
+    },
+    {
+      "id": "eval_011",
+      "question": "What are the three selectable driving modes in the M xDrive all-wheel drive system?",
+      "duration_ms": 15708.4,
+      "ttft_ms": 15708.06,
+      "is_error": false,
+      "prompt_tokens": 819,
+      "completion_tokens": 239,
+      "answer_preview": "The M xDrive system offers three selectable driving modes: 4"
+    },
+    {
+      "id": "eval_012",
+      "question": "How quickly can the Active M Differential alter its locking rate and what range does it support?",
+      "duration_ms": 1922.0,
+      "ttft_ms": 1921.86,
+      "is_error": false,
+      "prompt_tokens": 881,
+      "completion_tokens": 200,
+      "answer_preview": "The Active M Differential is capable of generating a 0 to 10"
+    },
+    {
+      "id": "eval_013",
+      "question": "What are the caster and camber alignment specifications for the BMW M front axle suspension?",
+      "duration_ms": 1684.8,
+      "ttft_ms": 1684.51,
+      "is_error": false,
+      "prompt_tokens": 770,
+      "completion_tokens": 190,
+      "answer_preview": "The front axle incorporates an increased caster angle of 8.5"
+    },
+    {
+      "id": "eval_014",
+      "question": "At what frequency/interval does the Adaptive M Damping system adjust its electromagnetic valves?",
+      "duration_ms": 2158.4,
+      "ttft_ms": 2158.11,
+      "is_error": false,
+      "prompt_tokens": 823,
+      "completion_tokens": 192,
+      "answer_preview": "The Adaptive M Damping system calculates and adjusts damping"
+    },
+    {
+      "id": "eval_015",
+      "question": "What are the front and rear disc dimensions of the M Carbon Ceramic braking system?",
+      "duration_ms": 2019.9,
+      "ttft_ms": 2019.43,
+      "is_error": false,
+      "prompt_tokens": 866,
+      "completion_tokens": 246,
+      "answer_preview": "The front carbon-ceramic discs measure 400 mm in diameter an"
+    },
+    {
+      "id": "eval_016",
+      "question": "How much unsprung rotating mass is saved by opting for M Carbon Ceramic brakes over steel brakes?",
+      "duration_ms": 1853.3,
+      "ttft_ms": 1852.92,
+      "is_error": false,
+      "prompt_tokens": 869,
+      "completion_tokens": 215,
+      "answer_preview": "Opting for the M Carbon Ceramic braking system saves 14.3 kg"
+    },
+    {
+      "id": "eval_017",
+      "question": "What maximum continuous operating temperature can the M Carbon Ceramic brakes withstand without fading?",
+      "duration_ms": 2193.2,
+      "ttft_ms": 2192.99,
+      "is_error": false,
+      "prompt_tokens": 831,
+      "completion_tokens": 176,
+      "answer_preview": "The M Carbon Ceramic braking system can withstand continuous"
+    },
+    {
+      "id": "eval_018",
+      "question": "Describe the two driver-selectable pedal feel modes offered by the Brake-by-Wire system.",
+      "duration_ms": 1821.5,
+      "ttft_ms": 1821.15,
+      "is_error": false,
+      "prompt_tokens": 832,
+      "completion_tokens": 246,
+      "answer_preview": "The Brake-by-Wire system offers two driver-selectable pedal "
+    },
+    {
+      "id": "eval_019",
+      "question": "How much weight does the CFRP roof save and by how much does it lower the vehicle center of gravity?",
+      "duration_ms": 2223.0,
+      "ttft_ms": 2222.61,
+      "is_error": false,
+      "prompt_tokens": 871,
+      "completion_tokens": 211,
+      "answer_preview": "The Carbon Fiber Reinforced Plastic (CFRP) roof reduces over"
+    },
+    {
+      "id": "eval_020",
+      "question": "How much weight is shed by choosing the optional M Carbon bucket seats over standard seats?",
+      "duration_ms": 1920.5,
+      "ttft_ms": 1920.19,
+      "is_error": false,
+      "prompt_tokens": 807,
+      "completion_tokens": 200,
+      "answer_preview": "The optional M Carbon bucket seats shed 9.6 kg (21.2 lbs) co"
+    },
+    {
+      "id": "eval_021",
+      "question": "By what percentage does the structural chassis bracing increase vehicle torsional stiffness?",
+      "duration_ms": 1978.8,
+      "ttft_ms": 1978.59,
+      "is_error": false,
+      "prompt_tokens": 872,
+      "completion_tokens": 187,
+      "answer_preview": "The structural chassis bracing increases torsional stiffness"
+    },
+    {
+      "id": "eval_022",
+      "question": "How much aerodynamic downforce does the rear diffuser generate at 200 km/h?",
+      "duration_ms": 1860.0,
+      "ttft_ms": 1859.81,
+      "is_error": false,
+      "prompt_tokens": 771,
+      "completion_tokens": 221,
+      "answer_preview": "At 200 km/h (124 mph), the aerodynamic diffuser generates 18"
+    },
+    {
+      "id": "eval_023",
+      "question": "What is the function of the front bumper vertical Air Curtains?",
+      "duration_ms": 1824.6,
+      "ttft_ms": 1824.35,
+      "is_error": false,
+      "prompt_tokens": 765,
+      "completion_tokens": 177,
+      "answer_preview": "The vertical Air Curtains located at the outer edges of the "
+    },
+    {
+      "id": "eval_024",
+      "question": "How many stages are provided by M Traction Control and what is the difference between Stage 1 and Stage 10?",
+      "duration_ms": 2019.4,
+      "ttft_ms": 2019.01,
+      "is_error": false,
+      "prompt_tokens": 839,
+      "completion_tokens": 220,
+      "answer_preview": "The M Traction Control system provides 10 distinct stages. S"
+    },
+    {
+      "id": "eval_025",
+      "question": "What telemetry metrics are tracked and rated by the M Drift Analyzer?",
+      "duration_ms": 1921.1,
+      "ttft_ms": 1920.77,
+      "is_error": false,
+      "prompt_tokens": 792,
+      "completion_tokens": 199,
+      "answer_preview": "The M Drift Analyzer automatically records drift duration, d"
+    },
+    {
+      "id": "eval_026",
+      "question": "Synthesize the lightweight measures applied to the body and interior to lower center of gravity and vehicle mass.",
+      "duration_ms": 2738.9,
+      "ttft_ms": 2738.37,
+      "is_error": false,
+      "prompt_tokens": 816,
+      "completion_tokens": 429,
+      "answer_preview": "To lower vehicle mass and center of gravity, the vehicle roo"
+    },
+    {
+      "id": "eval_027",
+      "question": "Explain how the S58 engine cooling system handles both engine oil and transmission thermal loads.",
+      "duration_ms": 5498.9,
+      "ttft_ms": 5498.58,
+      "is_error": false,
+      "prompt_tokens": 826,
+      "completion_tokens": 258,
+      "answer_preview": "The S58 cooling architecture manages thermal loads through a"
+    },
+    {
+      "id": "eval_028",
+      "question": "Compare the torque distribution characteristics of 4WD mode versus 2WD mode in M xDrive.",
+      "duration_ms": 4594.1,
+      "ttft_ms": 4593.77,
+      "is_error": false,
+      "prompt_tokens": 786,
+      "completion_tokens": 496,
+      "answer_preview": "In 4WD mode (the default stability-biased mode), drive torqu"
+    },
+    {
+      "id": "eval_029",
+      "question": "What manufacturing technique is used for the S58 cylinder head core and why?",
+      "duration_ms": 1822.3,
+      "ttft_ms": 1821.87,
+      "is_error": false,
+      "prompt_tokens": 894,
+      "completion_tokens": 187,
+      "answer_preview": "The S58 cylinder head core is 3D-printed, which allows coola"
+    },
+    {
+      "id": "eval_030",
+      "question": "What sensor update rate does the M Laptimer application use for telemetry tracking?",
+      "duration_ms": 3767.1,
+      "ttft_ms": 3766.69,
+      "is_error": false,
+      "prompt_tokens": 832,
+      "completion_tokens": 221,
+      "answer_preview": "The M Laptimer application utilizes the vehicle's high-preci"
+    }
+  ]
+}

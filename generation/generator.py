@@ -10,7 +10,7 @@ import re
 from typing import Any, Dict, List, Optional
 import google.generativeai as genai
 from config import settings
-from evals.retry import call_gemini_with_retry
+from evals.retry import call_gemini_with_retry, pace_api_request
 from generation.schemas import Citation, RAGResponse
 from generation.validator import validate_and_filter_citations
 from guardrails.gates import (
@@ -44,6 +44,9 @@ def generate_rag_response(
     Returns:
         Structured, provenance-verified RAGResponse.
     """
+    # Enforce request pacing OUTSIDE the timed region so rate limits do not inflate latency
+    pace_api_request(min_interval=7.5)
+
     tracker = TelemetryTracker(model_name=settings.CHAT_MODEL).start()
 
     # Step 1: Retrieval
@@ -98,12 +101,12 @@ def generate_rag_response(
         system_instruction=get_system_prompt(),
         generation_config={"temperature": 0.0, "response_mime_type": "application/json"}
     )
-    tracker.record_first_token()
-
     def _invoke_gemini():
-        return model.generate_content(prompt)
+        res = model.generate_content(prompt)
+        tracker.record_first_token()
+        return res
 
-    api_response, is_api_error, err_detail = call_gemini_with_retry(_invoke_gemini, max_retries=5)
+    api_response, is_api_error, err_detail = call_gemini_with_retry(_invoke_gemini, max_retries=5, enforce_pacing=False)
 
     if is_api_error:
         # Infrastructure error persisted after 5 retries -> Never score as wrong answer

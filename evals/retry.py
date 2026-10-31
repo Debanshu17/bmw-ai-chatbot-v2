@@ -26,6 +26,12 @@ def pace_api_request(min_interval: float = 7.5) -> None:
     _last_request_time = time.time()
 
 
+def record_api_call_completed() -> None:
+    """Updates last request timestamp when an API invocation terminates."""
+    global _last_request_time
+    _last_request_time = time.time()
+
+
 def is_api_failure(exc: Exception) -> bool:
     """Detects whether an exception represents a transient API infrastructure error.
 
@@ -63,7 +69,8 @@ def call_gemini_with_retry(
     initial_backoff: float = 2.0,
     backoff_factor: float = 2.0,
     max_backoff: float = 65.0,
-    min_request_interval: float = 7.5
+    min_request_interval: float = 7.5,
+    enforce_pacing: bool = False
 ) -> Tuple[Optional[Any], bool, Optional[str]]:
     """Executes a Gemini API call with rate pacing (max 8 req/min) and stop-and-wait retry on 429.
 
@@ -74,6 +81,7 @@ def call_gemini_with_retry(
         backoff_factor: Exponential multiplier (default: 2.0).
         max_backoff: Maximum backoff delay cap (default: 65.0).
         min_request_interval: Minimum seconds between requests (default: 7.5s = 8 req/min).
+        enforce_pacing: If True, pauses inside the function before invoking. Defaults to False so callers can pace outside timed regions.
 
     Returns:
         Tuple of (result, is_error: bool, error_message: Optional[str]).
@@ -82,12 +90,13 @@ def call_gemini_with_retry(
     """
     last_exc = None
     for attempt in range(max_retries + 1):
-        # Enforce rate pacing (8 requests per minute) unless running fast unit tests
-        if initial_backoff >= 0.1:
+        # Enforce rate pacing (8 requests per minute) only if explicitly enabled and not in test mode
+        if enforce_pacing and initial_backoff >= 0.1:
             pace_api_request(min_interval=min_request_interval)
 
         try:
             res = fn()
+            record_api_call_completed()
             return res, False, None
         except Exception as e:
             last_exc = e

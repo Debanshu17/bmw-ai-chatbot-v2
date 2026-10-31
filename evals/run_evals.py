@@ -24,7 +24,7 @@ if str(BASE_DIR) not in sys.path:
 
 from config import settings
 from evals.judge import judge_answer
-from evals.retry import call_gemini_with_retry
+from evals.retry import call_gemini_with_retry, pace_api_request
 from generation.generator import generate_rag_response
 from retrieval.index import global_vector_index
 from telemetry.monitor import TelemetryTracker, calculate_cost
@@ -76,16 +76,20 @@ def run_v1_baseline_query(question: str) -> Dict[str, Any]:
     Marks result as ERROR if API failures persist.
     """
     import google.generativeai as genai
+    # Pacing sleep occurs OUTSIDE the timed region
+    pace_api_request(min_interval=7.5)
+
     tracker = TelemetryTracker(model_name=settings.CHAT_MODEL).start()
 
     prompt = f"Answer the user's question:\n{question}"
     model = genai.GenerativeModel(model_name=settings.CHAT_MODEL)
-    tracker.record_first_token()
 
     def _call():
-        return model.generate_content(prompt)
+        res = model.generate_content(prompt)
+        tracker.record_first_token()
+        return res
 
-    api_response, is_api_error, err_detail = call_gemini_with_retry(_call, max_retries=5)
+    api_response, is_api_error, err_detail = call_gemini_with_retry(_call, max_retries=5, enforce_pacing=False)
     if is_api_error:
         logger.error(f"v1 baseline call failed after 5 retries: {err_detail}")
         prompt_tokens = len(prompt.split()) * 2

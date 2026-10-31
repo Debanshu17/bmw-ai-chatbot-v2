@@ -1,6 +1,6 @@
 # Resume Bullets: Production-Grade RAG Engineering
 
-These bullets adhere strictly to the **Google XYZ format** (*"Accomplished [X] as measured by [Y], by doing [Z]"*), derived exclusively from the final validated benchmark reports ([`eval_v1_baseline_20261031_010339.json`](../reports/eval_v1_baseline_20261031_010339.json) and [`eval_v2_production_20261031_011115.json`](../reports/eval_v2_production_20261031_011115.json)). No figures are simulated or extrapolated.
+These bullets adhere strictly to the **Google XYZ format** (*"Accomplished [X] as measured by [Y], by doing [Z]"*), derived exclusively from the final validated benchmark reports ([`eval_v1_baseline_20261031_010339.json`](../reports/eval_v1_baseline_20261031_010339.json), [`eval_v2_production_20261031_011115.json`](../reports/eval_v2_production_20261031_011115.json), and dedicated latency reports [`eval_v1_latency_bench_20261031.json`](../reports/eval_v1_latency_bench_20261031.json), [`eval_v2_latency_bench_20261031.json`](../reports/eval_v2_latency_bench_20261031.json)). No figures are simulated or extrapolated.
 
 ---
 
@@ -11,7 +11,7 @@ These bullets adhere strictly to the **Google XYZ format** (*"Accomplished [X] a
 > **Eliminated model hallucinations on unanswerable and out-of-scope queries, achieving 100.0% refusal compliance (vs. 20.0% for baseline) by engineering dual-stage guardrails (pre-LLM similarity threshold gating at 0.72 and post-generation citation validation) that short-circuited 100% of adversarial questions at \$0 token cost.**
 
 ### Option 3: Production Telemetry & Resilient Evaluation Infrastructure
-> **Engineered an automated continuous evaluation harness (v2.1.0) and operational telemetry pipeline tracking TTFT (530.9 ms avg) and latency percentiles; built client-side rate-limiting and stop-and-wait exponential backoff that completed a 40-question benchmark with 0 infrastructure errors and 100% genuine LLM generation (0 extractive fallback).**
+> **Engineered an automated evaluation harness (v2.1.0) and operational telemetry pipeline achieving a median response latency of 2.2s (p50: 2,208 ms vs. 3,999 ms for closed-book baseline); built client-side rate-limiting and stop-and-wait exponential backoff that completed a 40-question benchmark with 0 infrastructure errors and 100% genuine LLM generation (0 extractive fallback).**
 
 ---
 
@@ -26,6 +26,9 @@ These bullets adhere strictly to the **Google XYZ format** (*"Accomplished [X] a
 | **Citation Recall** | 25.0% | **96.25%** | **+71.25%** |
 | **Fallback True-Positive Rate (TPR)** | 0.0% (0/10) | **100.0%** (10/10) | **+100.0%** |
 | **False-Fallback Rate (FFR)** | 0.0% (0/30) | **3.33%** (1/30) | +3.33% |
-| **Average Time-To-First-Token (TTFT)** | N/A *(non-streaming)* | **530.9 ms** | Sub-second |
+| **Median (p50) Compute Latency (Answerable)** | 3,999.2 ms | **2,208.1 ms** | **-1,791.1 ms** |
+| **Average Compute Latency (Answerable)** | 5,453.9 ms | **8,548.6 ms**\* | +3,094.7 ms |
 | **Infrastructure Errors** | 0 (0.0%) | **0 (0.0%)** | Zero errors |
 | **Extractive Fallback Used** | 0 / 40 | **0 / 40 (0%)** | 100% genuine LLM generation |
+
+*\*v2 average compute latency reflects two 60s external embedding endpoint socket timeouts on queries 5 and 6; median compute latency (p50) was 2,208 ms.*

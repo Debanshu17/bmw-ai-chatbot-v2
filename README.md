@@ -6,7 +6,7 @@
 ![Gemini](https://img.shields.io/badge/Google_Gemini-3.5_Flash_Lite-4285F4.svg)
 ![License](https://img.shields.io/badge/License-MIT-black.svg)
 
-An enterprise-grade, high-performance Retrieval-Augmented Generation (RAG) system engineered for technical automotive specifications. Built with deterministic multi-stage guardrails, in-code citation provenance verification, real-time latency and financial telemetry, and an automated continuous evaluation harness.
+An enterprise-grade, high-performance Retrieval-Augmented Generation (RAG) system engineered for technical automotive specifications. Built with deterministic multi-stage guardrails, in-code citation provenance verification, real-time latency and financial telemetry, and an automated evaluation harness.
 
 > **Note on Repositories**: The original chatbot codebase is preserved 100% untouched and intact in its own standalone repository at [`https://github.com/Debanshu17/bmw-ai-chatbot`](https://github.com/Debanshu17/bmw-ai-chatbot). This repository (`bmw-ai-chatbot-v2`) represents the completely re-architected production system.
 
@@ -53,6 +53,7 @@ Evaluated on the 40-question technical benchmark ([`evals/dataset.jsonl`](evals/
 
 - **Closed-book baseline report**: [`reports/eval_v1_baseline_20261031_010339.json`](reports/eval_v1_baseline_20261031_010339.json)
 - **v2 Production RAG report**: [`reports/eval_v2_production_20261031_011115.json`](reports/eval_v2_production_20261031_011115.json)
+- **Dedicated latency benchmarks (pacing excluded)**: [`reports/eval_v1_latency_bench_20261031.json`](reports/eval_v1_latency_bench_20261031.json) and [`reports/eval_v2_latency_bench_20261031.json`](reports/eval_v2_latency_bench_20261031.json)
 
 | Evaluation Metric | Closed-Book Baseline<br>*(Plain Gemini, No Document Access)* | v2 Production RAG<br>*(Retrieval + Dual Gating)* | Benchmark Target | Metric Focus |
 | :--- | :---: | :---: | :---: | :--- |
@@ -65,19 +66,21 @@ Evaluated on the 40-question technical benchmark ([`evals/dataset.jsonl`](evals/
 | **Citation Recall** | 25.0% | **96.25%** | $\ge 80.0\%$ | Grounded source coverage |
 | **Fallback True-Positive Rate (TPR)** | 0.0% (0/10) | **100.0%** (10/10) | $\ge 90.0\%$ | Out-of-scope refusal compliance |
 | **False-Fallback Rate (FFR)** | 0.0% (0/30) | **3.33%** (1/30) | $\le 10.0\%$ | Avoid refusing valid questions |
-| **Average Latency (Overall)** | 8,189.6 ms | 5,961.6 ms | Operational tracking | Includes rate-limiter sleep |
-| **— Average Latency (Answerable Only)** | 8,189.6 ms | 7,777.3 ms | Operational tracking | Includes rate-limiter sleep |
-| **— Average Latency (Out-of-Scope Only)** | 8,189.6 ms | 514.5 ms | Operational tracking | Gate 1 pre-LLM short-circuit |
-| **p95 Latency (Overall / Answerable)** | 10,180.3 ms | 8,085.3 ms / 8,136.4 ms | Operational tracking | Includes rate-limiter sleep |
-| **Average Time-To-First-Token (TTFT)** | N/A *(non-streaming)* | 530.9 ms | $< 1000$ ms | Perceived responsiveness |
+| **Answerable Latency (Pure Compute, Pacing Excluded)** | | | | |
+| **— Average Latency (Answerable)** | 5,453.9 ms | 8,548.6 ms* | Operational tracking | Pure compute (pacing excluded) |
+| **— Median (p50) Latency (Answerable)** | 3,999.2 ms | **2,208.1 ms** | Operational tracking | Median execution time |
+| **— p95 Latency (Answerable)** | 13,606.1 ms | 41,453.6 ms* | Operational tracking | 95th percentile tail |
+| **— Average TTFT (Answerable)** | 5,453.6 ms | 8,548.3 ms | Operational tracking | Unary response arrival |
 | **Average Cost / Query (Overall)** | \$0.000668 | \$0.000628 | $< \$0.005$ | Theoretical projection |
 | **— Average Cost / Query (Answerable Only)** | \$0.000668 | \$0.000837 | $< \$0.005$ | Context-loaded queries |
 | **Answer Source: Genuine Gemini Generation** | 40 / 40 (100%) | 40 / 40 (100%) | 100% on answerable | Zero extractive fallback used |
 | **Judge Method: LLM-as-a-Judge** | 40 / 40 (100%) | 30 / 30 on answerable | Strict rubric | Zero-temperature evaluation |
 
+*\*Note on v2 Latency Tail: While v2 achieved a faster median response time (p50 of 2,208.1 ms vs 3,999.2 ms for baseline), the v2 average and p95 latencies were inflated by two 60-second external socket timeouts on Google's embedding endpoint (`eval_005` and `eval_006`). Across the remaining 28 answerable queries, v2 average compute latency was ~4,950 ms.*
+
 > **Important Latency & Cost Context**:
-> - **No Cheaper / Faster Claim**: v2 is not claimed to be inherently cheaper or faster than the baseline. In production, answering technical questions with RAG requires retrieving and injecting dense context (~850 prompt tokens per query in v2 vs. ~25 prompt tokens for baseline), which incurs additional computational overhead. While Gate 1 drastically cuts cost and latency on out-of-scope queries (0 token cost, < 20ms execution) by blocking them before the LLM, answerable questions cost slightly more (\$0.000837 vs \$0.000668). The primary value of v2 lies in factual grounding (93.3% vs 53.3% accuracy) and verifiable source citations (96.25% recall vs 25.0%).
-> - **Rate-Limiting in Recorded Latency**: In accordance with API quotas, both benchmark evaluations enforced strict client-side request pacing (max 8 requests/minute, ~7.5 seconds between requests). The recorded pipeline latencies (~7.8s on answerable queries) reflect this intentional sleep period. The actual compute time (retrieval + model inference) is represented by the average TTFT (~531 ms).
+> - **No Cheaper / Faster Claim**: v2 is not claimed to be inherently cheaper or faster than the baseline. Answering technical questions with RAG requires retrieving and injecting dense context (~850 prompt tokens per query in v2 vs. ~25 prompt tokens for baseline), which incurs additional computational overhead. While Gate 1 cuts cost and latency on out-of-scope queries (0 token cost, < 20ms execution) by blocking them before the LLM, answerable questions cost slightly more (\$0.000837 vs \$0.000668). The primary value of v2 lies in factual grounding (93.3% vs 53.3% accuracy) and verifiable source citations (96.25% recall vs 25.0%).
+> - **Rate-Limiting vs. Pure Compute**: To respect Google AI Studio quotas, the full benchmark enforced client-side rate-limiting (~7.5s between calls). The latency numbers above are drawn from the dedicated latency benchmark where pacing pauses were executed strictly outside the timed measurement block.
 
 ---
 
@@ -93,15 +96,15 @@ Evaluated on the 40-question technical benchmark ([`evals/dataset.jsonl`](evals/
    The v2 system failed 2 out of 40 queries (95.0% accuracy):
    - **`eval_003` (False Refusal on S58 Intake Air Cooling Circuit)**:
      - *Query*: *"How is the intake air cooled in the S58 forced induction system?"*
-     - *Root Cause*: The cosine similarity between the query embedding and the relevant engine cooling chunk scored just below the strict `0.72` retrieval threshold, triggering a false-negative refusal (`used_fallback = True`).
-     - *Proposed Fix*: Implement **hybrid search** combining BM25 sparse keyword matching with dense vector embeddings via Reciprocal Rank Fusion (RRF), ensuring exact technical terms like *"liquid-to-air intercooler"* are retrieved even when semantic similarity is borderline.
+     - *Root Cause Analysis*: Dense retrieval successfully found the relevant document chunk (`bmw_m_s58_engine_technical_guide.md`, Chapter 2) containing *"liquid-to-air intercooler positioned directly atop the engine intake manifold"*, scoring **0.7302** (with top chunk scoring **0.7566**, both well above the 0.72 similarity threshold). The chunk was present in the prompt context at Rank 4, but the model overlooked it and returned a false refusal (`used_fallback = True`). This was an **LLM context-attentiveness / extraction failure**, not a retrieval threshold miss.
+     - *Proposed Fix*: Implement **reranking** (e.g. Cohere or Flash Rerank) to place the most relevant sentence at Rank 1 of the prompt, or adopt **hybrid search** combining BM25 keywords with dense vectors to boost exact technical matches.
    - **`eval_028` (Nuance Error in M xDrive 4WD vs 2WD Torque Distribution)**:
      - *Query*: *"Compare the torque distribution characteristics of 4WD mode versus 2WD mode in M xDrive."*
      - *Root Cause*: The generated answer stated that front axle torque is engaged *"only when rear slip is detected"*. The judge flagged this as a factual inaccuracy because M xDrive's 4WD mode is permanently engaged with a continuous rear-biased distribution, rather than acting purely reactively on slip.
-     - *Proposed Fix*: Increase chunk boundary overlap (from 50 to 120 tokens) to ensure full multi-sentence context regarding differential clutch pre-loading is retained, and refine system prompts to penalize oversimplified drivetrain descriptions.
+     - *Hypothesis to Test*: Increasing chunk boundary overlap (from 50 to 120 tokens) and refining system prompt directives may preserve the complete multi-sentence context regarding differential clutch pre-loading, but this remains a hypothesis that must be empirically validated via an ablation benchmark.
 
 4. **Projected Financial Pricing vs. Free-Tier Execution**:
-   Token costs listed in this documentation are calculated from Google AI Studio's published paid-tier pricing as of October 31, 2026 (\$0.30 / 1M input tokens, \$2.50 / 1M output tokens). Development, testing, and continuous benchmarking were executed exclusively within Google's Free Tier with rate-limiting backoff, resulting in **\$0.00 of actual financial spend**.
+   Token costs listed in this documentation are calculated from Google AI Studio's published paid-tier pricing as of October 31, 2026 (\$0.30 / 1M input tokens, \$2.50 / 1M output tokens). Development, testing, and automated benchmarking were executed exclusively within Google's Free Tier with rate-limiting backoff, resulting in **\$0.00 of actual financial spend**.
 
 ### Graceful-Degradation Extractive Fallback Mode
 The system features an automated **extractive fallback mode** as an emergency safety net: if LLM JSON parsing or network streaming fails, the system safely extracts the top grounded chunk sentence with verified source provenance so the user receives a grounded excerpt rather than an unhandled error.

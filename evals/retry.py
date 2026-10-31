@@ -11,6 +11,20 @@ from typing import Any, Callable, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+# Tracks last API request timestamp to enforce max 8 requests per minute (7.5s interval)
+_last_request_time: float = 0.0
+
+
+def pace_api_request(min_interval: float = 7.5) -> None:
+    """Enforces request pacing to cap Gemini API calls at 8 requests per minute."""
+    global _last_request_time
+    now = time.time()
+    elapsed = now - _last_request_time
+    if elapsed < min_interval:
+        sleep_duration = min_interval - elapsed
+        time.sleep(sleep_duration)
+    _last_request_time = time.time()
+
 
 def is_api_failure(exc: Exception) -> bool:
     """Detects whether an exception represents a transient API infrastructure error.
@@ -45,19 +59,21 @@ def is_api_failure(exc: Exception) -> bool:
 
 def call_gemini_with_retry(
     fn: Callable[[], Any],
-    max_retries: int = 5,
-    initial_backoff: float = 1.0,
+    max_retries: int = 8,
+    initial_backoff: float = 2.0,
     backoff_factor: float = 2.0,
-    max_backoff: float = 32.0
+    max_backoff: float = 65.0,
+    min_request_interval: float = 7.5
 ) -> Tuple[Optional[Any], bool, Optional[str]]:
-    """Executes a Gemini API call with exponential backoff on transient infrastructure failures.
+    """Executes a Gemini API call with rate pacing (max 8 req/min) and stop-and-wait retry on 429.
 
     Args:
         fn: Zero-argument callable invoking the API.
-        max_retries: Maximum number of retry attempts (default: 5).
-        initial_backoff: Initial backoff delay in seconds (default: 1.0).
+        max_retries: Maximum number of retry attempts (default: 8).
+        initial_backoff: Initial backoff delay in seconds (default: 2.0).
         backoff_factor: Exponential multiplier (default: 2.0).
-        max_backoff: Maximum backoff delay cap (default: 32.0).
+        max_backoff: Maximum backoff delay cap (default: 65.0).
+        min_request_interval: Minimum seconds between requests (default: 7.5s = 8 req/min).
 
     Returns:
         Tuple of (result, is_error: bool, error_message: Optional[str]).
@@ -66,6 +82,10 @@ def call_gemini_with_retry(
     """
     last_exc = None
     for attempt in range(max_retries + 1):
+        # Enforce rate pacing (8 requests per minute) unless running fast unit tests
+        if initial_backoff >= 0.1:
+            pace_api_request(min_interval=min_request_interval)
+
         try:
             res = fn()
             return res, False, None
@@ -73,16 +93,24 @@ def call_gemini_with_retry(
             last_exc = e
             if is_api_failure(e):
                 if attempt < max_retries:
-                    sleep_time = min(initial_backoff * (backoff_factor ** attempt), max_backoff)
-                    # If API explicitly suggests a retry delay (e.g. "retry in 18s"), respect it
+                    base_sleep = min(initial_backoff * (backoff_factor ** attempt), max_backoff)
+                    err_str = str(e).lower()
+
+                    # Treat 429 as stop-and-wait: check if API specifies delay or wait for quota reset
                     delay_match = re.search(r"retry(?:\s+in|\s+after)?\s+([\d\.]+)\s*s", str(e), re.IGNORECASE)
                     if delay_match:
                         suggested_delay = float(delay_match.group(1)) + 1.0
-                        sleep_time = max(sleep_time, min(suggested_delay, max_backoff))
+                        sleep_time = max(base_sleep, min(suggested_delay, max_backoff))
+                    elif "429" in err_str or "resource_exhausted" in err_str or "quota" in err_str:
+                        # Stop and wait on 429: wait at least 20s (or 0.05s in test mode)
+                        sleep_time = max(base_sleep, 20.0 if initial_backoff >= 0.1 else 0.05)
+                        sleep_time = min(sleep_time, max_backoff)
+                    else:
+                        sleep_time = base_sleep
 
                     logger.warning(
                         f"Transient API failure ({type(e).__name__}: {e}). "
-                        f"Retrying with exponential backoff in {sleep_time:.1f}s (attempt {attempt + 1}/{max_retries})..."
+                        f"Stop-and-wait backoff for {sleep_time:.1f}s (attempt {attempt + 1}/{max_retries})..."
                     )
                     time.sleep(sleep_time)
                     continue

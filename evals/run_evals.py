@@ -511,6 +511,10 @@ def run_eval(
     # Judge methods breakdown
     llm_judgments_count = sum(1 for r in results if r.get("judge_method") == "llm")
     fuzzy_judgments_count = sum(1 for r in results if r.get("judge_method") == "fuzzy")
+    llm_judgments_answerable = sum(1 for r in valid_answerable if r.get("judge_method") == "llm")
+    fuzzy_judgments_answerable = sum(1 for r in valid_answerable if r.get("judge_method") == "fuzzy")
+    llm_judgments_unanswerable = sum(1 for r in valid_unanswerable if r.get("judge_method") == "llm")
+    fuzzy_judgments_unanswerable = sum(1 for r in valid_unanswerable if r.get("judge_method") == "fuzzy")
 
     # Extractive fallback validity check on answerable questions
     extractive_answerable_count = sum(1 for r in valid_answerable if r.get("answer_source") == "extractive_fallback")
@@ -576,6 +580,10 @@ def run_eval(
         "extractive_answers_count": extractive_answers_count,
         "llm_judgments_count": llm_judgments_count,
         "fuzzy_judgments_count": fuzzy_judgments_count,
+        "llm_judgments_answerable": llm_judgments_answerable,
+        "fuzzy_judgments_answerable": fuzzy_judgments_answerable,
+        "llm_judgments_unanswerable": llm_judgments_unanswerable,
+        "fuzzy_judgments_unanswerable": fuzzy_judgments_unanswerable,
         "extractive_fallback_on_answerable_count": extractive_answerable_count,
         "extractive_fallback_on_answerable_pct": extractive_answerable_pct,
         "answer_sources": {

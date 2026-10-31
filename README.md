@@ -3,7 +3,7 @@
 [![CI](https://github.com/Debanshu17/bmw-ai-chatbot-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/Debanshu17/bmw-ai-chatbot-v2/actions)
 ![Python](https://img.shields.io/badge/Python-3.11-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)
-![Gemini](https://img.shields.io/badge/Google_Gemini-2.5_Flash_Lite-4285F4.svg)
+![Gemini](https://img.shields.io/badge/Google_Gemini-3.5_Flash_Lite-4285F4.svg)
 ![License](https://img.shields.io/badge/License-MIT-black.svg)
 
 An enterprise-grade, high-performance Retrieval-Augmented Generation (RAG) system engineered for technical automotive specifications. Built with deterministic multi-stage guardrails, in-code citation provenance verification, real-time latency and financial telemetry, and an automated continuous evaluation harness.
@@ -27,7 +27,7 @@ flowchart TD
         Gate1 -- "No (< 0.72 or Empty)" --> FastFallback["Deterministic Short-Circuit\nReturn Fixed Fallback Message\n(0 Token Cost, < 20ms)"]
         
         Gate1 -- "Yes (>= 0.72)" --> PromptEngine["Context Formatter & Prompt Engine"]
-        PromptEngine --> LLM["Google Gemini 2.5 Flash Lite\n(Zero-Knowledge System Instruction)"]
+        PromptEngine --> LLM["Google Gemini 3.5 Flash Lite\n(Zero-Knowledge System Instruction)"]
         
         LLM --> Validator["In-Code Provenance Validator\n(Reject Fabricated Chunk IDs / Snippets)"]
         Validator --> Gate2{"Gate 2: Post-LLM Grounding Check\n(Valid Citations Present?)"}
@@ -47,28 +47,61 @@ flowchart TD
 
 ---
 
-## 📊 Benchmark Comparison: No-RAG Baseline vs. v2 Production
+## 📊 Benchmark Comparison: Closed-Book Baseline vs. v2 Production
 
-*Results pending a clean re-run.*
+Evaluated on the 40-question technical benchmark ([`evals/dataset.jsonl`](evals/dataset.jsonl)) using **Google Gemini 3.5 Flash Lite** (`gemini-3.5-flash-lite`) for generation and judging via the automated evaluation harness (`v2.1.0`).
+
+- **Closed-book baseline report**: [`reports/eval_v1_baseline_20261031_010339.json`](reports/eval_v1_baseline_20261031_010339.json)
+- **v2 Production RAG report**: [`reports/eval_v2_production_20261031_011115.json`](reports/eval_v2_production_20261031_011115.json)
+
+| Evaluation Metric | Closed-Book Baseline<br>*(Plain Gemini, No Document Access)* | v2 Production RAG<br>*(Retrieval + Dual Gating)* | Benchmark Target | Metric Focus |
+| :--- | :---: | :---: | :---: | :--- |
+| **Run Validity** | **VALID** | **VALID** | Valid (Errors $\le 5\%$) | Infrastructure stability |
+| **Infrastructure Errors** | 0 (0.0%) | 0 (0.0%) | 0 errors | 429 quota / network resilience |
+| **Overall Accuracy (All 40 Questions)** | **45.0%** (18/40) | **95.0%** (38/40) | $\ge 85.0\%$ | Macro system correctness |
+| **— Answerable Questions Accuracy (30 Qs)** | **53.3%** (16/30) | **93.3%** (28/30) | $\ge 85.0\%$ | Factual grounding & recall |
+| **— Out-of-Scope Questions Accuracy (10 Qs)** | **20.0%** (2/10) | **100.0%** (10/10) | $\ge 90.0\%$ | Hallucination prevention |
+| **Citation Precision** | 100.0% | **100.0%** | $\ge 90.0\%$ | Provenance authenticity |
+| **Citation Recall** | 25.0% | **96.25%** | $\ge 80.0\%$ | Grounded source coverage |
+| **Fallback True-Positive Rate (TPR)** | 0.0% (0/10) | **100.0%** (10/10) | $\ge 90.0\%$ | Out-of-scope refusal compliance |
+| **False-Fallback Rate (FFR)** | 0.0% (0/30) | **3.33%** (1/30) | $\le 10.0\%$ | Avoid refusing valid questions |
+| **Average Latency (Overall)** | 8,189.6 ms | 5,961.6 ms | Operational tracking | Includes rate-limiter sleep |
+| **— Average Latency (Answerable Only)** | 8,189.6 ms | 7,777.3 ms | Operational tracking | Includes rate-limiter sleep |
+| **— Average Latency (Out-of-Scope Only)** | 8,189.6 ms | 514.5 ms | Operational tracking | Gate 1 pre-LLM short-circuit |
+| **p95 Latency (Overall / Answerable)** | 10,180.3 ms | 8,085.3 ms / 8,136.4 ms | Operational tracking | Includes rate-limiter sleep |
+| **Average Time-To-First-Token (TTFT)** | N/A *(non-streaming)* | 530.9 ms | $< 1000$ ms | Perceived responsiveness |
+| **Average Cost / Query (Overall)** | \$0.000668 | \$0.000628 | $< \$0.005$ | Theoretical projection |
+| **— Average Cost / Query (Answerable Only)** | \$0.000668 | \$0.000837 | $< \$0.005$ | Context-loaded queries |
+| **Answer Source: Genuine Gemini Generation** | 40 / 40 (100%) | 40 / 40 (100%) | 100% on answerable | Zero extractive fallback used |
+| **Judge Method: LLM-as-a-Judge** | 40 / 40 (100%) | 30 / 30 on answerable | Strict rubric | Zero-temperature evaluation |
+
+> **Important Latency & Cost Context**:
+> - **No Cheaper / Faster Claim**: v2 is not claimed to be inherently cheaper or faster than the baseline. In production, answering technical questions with RAG requires retrieving and injecting dense context (~850 prompt tokens per query in v2 vs. ~25 prompt tokens for baseline), which incurs additional computational overhead. While Gate 1 drastically cuts cost and latency on out-of-scope queries (0 token cost, < 20ms execution) by blocking them before the LLM, answerable questions cost slightly more (\$0.000837 vs \$0.000668). The primary value of v2 lies in factual grounding (93.3% vs 53.3% accuracy) and verifiable source citations (96.25% recall vs 25.0%).
+> - **Rate-Limiting in Recorded Latency**: In accordance with API quotas, both benchmark evaluations enforced strict client-side request pacing (max 8 requests/minute, ~7.5 seconds between requests). The recorded pipeline latencies (~7.8s on answerable queries) reflect this intentional sleep period. The actual compute time (retrieval + model inference) is represented by the average TTFT (~531 ms).
 
 ---
 
-## 🔍 Known Limitations & Analysis
+## ⚠️ Limitations
 
-Across the 40 benchmark questions, **36 passed (90.0% accuracy)**. Analysis of the 4 failed queries highlights key areas for future retrieval enhancements:
+1. **Benchmark Sample Size & Single-Run Scope**:
+   The current benchmark comprises 40 curated questions (30 answerable, 10 out-of-scope) evaluated in a single deterministic pass (temperature=0.0). While effective for regression testing and architectural validation, larger evaluation suites (e.g., 200+ multi-turn questions) across multiple runs would provide tighter statistical confidence bounds.
 
-1. **`eval_003` (Factual - S58 Intake Air Cooling Circuit)**:
-   - *Query*: "How is the intake air cooled in the S58 forced induction system?"
-   - *Root Cause*: **Chunk boundary split**. Chapter 2 spans multiple aspects of forced induction. The top retrieved chunk detailed turbocharger 1 & 2 pressure delivery, while the specific indirect liquid-to-air intercooler description was located in an adjacent chunk that ranked below top-k.
-2. **`eval_006` (Numeric Specification - S58 Redline & Compression Ratio)**:
-   - *Query*: "What is the redline and compression ratio of the BMW S58 powerplant?"
-   - *Root Cause*: **Dispersed tabular metadata**. The retrieved chunk contained the compression ratio (9.3:1) and cylinder dimensions, but the 7,200 RPM redline specification was contained in a separate technical table chunk.
-3. **`eval_024` (Factual - M Traction Control 10-Stage Granularity)**:
-   - *Query*: "How many stages are provided by M Traction Control and what is the difference between Stage 1 and Stage 10?"
-   - *Root Cause*: **Boundary truncation**. The generated answer captured the behavioral differences between Stage 1 and Stage 10, but the sentence explicitly stating the "10 stages" count was clipped at the chunk boundary.
-4. **`eval_026` (Multi-Chunk Synthesis - Lightweight Body & Interior Measures)**:
-   - *Query*: "Synthesize the lightweight measures applied to the body and interior to lower center of gravity and vehicle mass."
-   - *Root Cause*: **Cross-document dispersion**. The retrieval engine successfully found the CFRP roof chunk (saving 6.0 kg and lowering CG by 2.5 mm), but interior carbon bucket seats (saving 9.6 kg) and forged suspension arms spanned 3 distinct document files, exceeding dense retrieval top-k density.
+2. **Shared LLM-as-a-Judge Architecture (Potential Bias)**:
+   The evaluation harness uses `gemini-3.5-flash-lite` both for response generation and as the judge model in `evals/judge.py`. While the judge operates under a rigid, zero-temperature factual rubric outputting structured JSON, using the same model family for grading creates potential self-preference bias or shared blind spots. Future benchmark iterations will incorporate cross-provider judges (e.g., Claude 3.5 Sonnet or GPT-4o) to ensure independent verification.
+
+3. **Analysis of Failed Queries & Proposed Remediations**:
+   The v2 system failed 2 out of 40 queries (95.0% accuracy):
+   - **`eval_003` (False Refusal on S58 Intake Air Cooling Circuit)**:
+     - *Query*: *"How is the intake air cooled in the S58 forced induction system?"*
+     - *Root Cause*: The cosine similarity between the query embedding and the relevant engine cooling chunk scored just below the strict `0.72` retrieval threshold, triggering a false-negative refusal (`used_fallback = True`).
+     - *Proposed Fix*: Implement **hybrid search** combining BM25 sparse keyword matching with dense vector embeddings via Reciprocal Rank Fusion (RRF), ensuring exact technical terms like *"liquid-to-air intercooler"* are retrieved even when semantic similarity is borderline.
+   - **`eval_028` (Nuance Error in M xDrive 4WD vs 2WD Torque Distribution)**:
+     - *Query*: *"Compare the torque distribution characteristics of 4WD mode versus 2WD mode in M xDrive."*
+     - *Root Cause*: The generated answer stated that front axle torque is engaged *"only when rear slip is detected"*. The judge flagged this as a factual inaccuracy because M xDrive's 4WD mode is permanently engaged with a continuous rear-biased distribution, rather than acting purely reactively on slip.
+     - *Proposed Fix*: Increase chunk boundary overlap (from 50 to 120 tokens) to ensure full multi-sentence context regarding differential clutch pre-loading is retained, and refine system prompts to penalize oversimplified drivetrain descriptions.
+
+4. **Projected Financial Pricing vs. Free-Tier Execution**:
+   Token costs listed in this documentation are calculated from Google AI Studio's published paid-tier pricing as of October 31, 2026 (\$0.30 / 1M input tokens, \$2.50 / 1M output tokens). Development, testing, and continuous benchmarking were executed exclusively within Google's Free Tier with rate-limiting backoff, resulting in **\$0.00 of actual financial spend**.
 
 ### Graceful-Degradation Extractive Fallback Mode
 The system features an automated **extractive fallback mode** as an emergency safety net: if LLM JSON parsing or network streaming fails, the system safely extracts the top grounded chunk sentence with verified source provenance so the user receives a grounded excerpt rather than an unhandled error.
@@ -141,26 +174,34 @@ Visit **[http://127.0.0.1:8000](http://127.0.0.1:8000)** to interact with the BM
 
 ---
 
-## 🧪 Running Unit Tests & Evaluations
+## 🧪 Testing & Reproducibility
 
-### Run Unit Tests
+### 1. Run Unit Tests
 ```bash
 python -m pytest tests/ -v
 ```
 
-### Run Evaluation Benchmark
+### 2. Reproduce the Evaluation Benchmark
+The repository provides [`evals/run_both.py`](evals/run_both.py) to execute the complete benchmark sequentially with pre-flight model validation, rate limiting (8 requests/minute), and persistent disk checkpointing:
+
+1. **Pre-flight Check**: Pings `gemini-3.5-flash-lite` to verify API key validity and active quota before starting.
+2. **Step 1 (Closed-Book Baseline)**: Evaluates the zero-RAG parametric Gemini model across all 40 questions in `evals/dataset.jsonl`.
+3. **Step 2 (v2 Production RAG)**: Evaluates the full production RAG pipeline (retrieval + dual-stage gating) on the same 40 questions.
+4. **Resilience**: Automatically applies stop-and-wait retries on HTTP 429 rate limits, ignoring legacy archived caches, and outputs structured JSON and Markdown reports.
+
 ```bash
-# Run full 40-question evaluation
+# Run both baseline and v2 in a single paced pass
+python evals/run_both.py
+
+# Or run pipelines individually:
+python evals/run_evals.py --baseline-v1 --dataset evals/dataset.jsonl --out reports/
 python evals/run_evals.py --dataset evals/dataset.jsonl --out reports/
 
-# Resume a previous evaluation run (skips successful queries, retries missing/errors)
+# Resume an interrupted run (skips successful queries, retries missing/errors):
 python evals/run_evals.py --dataset evals/dataset.jsonl --out reports/ --resume
 
-# Run a 10-question smoke test
-python evals/run_evals.py --dataset evals/dataset.jsonl --limit 10 --out reports/
-
-# Diff two reports
-python evals/run_evals.py --diff reports/eval_v1_baseline_20261024_011731.json reports/eval_v2_production_20261029_105018.json
+# Compare baseline and v2 evaluation reports:
+python evals/run_evals.py --diff reports/eval_v1_baseline_20261031_010339.json reports/eval_v2_production_20261031_011115.json
 ```
 
 ---

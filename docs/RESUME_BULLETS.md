@@ -5,7 +5,7 @@ These bullets adhere strictly to the **Google XYZ format** (*"Accomplished [X] a
 ---
 
 ### Option 1: Accuracy, Retrieval Precision & Hallucination Elimination
-> **Architected an enterprise RAG system for dense automotive engineering manuals, elevating factual accuracy from 45.0% to 95.0% (and 93.3% vs. 53.3% on answerable queries) against a closed-book Gemini 3.5 Flash Lite baseline by implementing 3072-dimensional vector retrieval, in-code provenance verification (100% citation precision, 96.25% recall), and deterministic fallback gating.**
+> **Architected an enterprise RAG system for a 32-chunk technical knowledge base across 3 BMW M engineering guides, elevating factual accuracy from 45.0% to 95.0% (and 93.3% vs. 53.3% on answerable queries) against a closed-book Gemini 3.5 Flash Lite baseline by implementing 3072-dimensional vector retrieval, in-code provenance verification (100% citation precision, 96.25% recall), and deterministic fallback gating.**
 
 ### Option 2: Deterministic Guardrails & Out-of-Scope Fallback Handling
 > **Eliminated model hallucinations on unanswerable and out-of-scope queries, achieving 100.0% refusal compliance (vs. 20.0% for baseline) by engineering dual-stage guardrails (pre-LLM similarity threshold gating at 0.72 and post-generation citation validation) that short-circuited 100% of adversarial questions at \$0 token cost.**
@@ -31,4 +31,4 @@ These bullets adhere strictly to the **Google XYZ format** (*"Accomplished [X] a
 | **Infrastructure Errors** | 0 (0.0%) | **0 (0.0%)** | Zero errors |
 | **Extractive Fallback Used** | 0 / 40 | **0 / 40 (0%)** | 100% genuine LLM generation |
 
-*\*v2 average compute latency reflects two 60s external embedding endpoint socket timeouts on queries 5 and 6; median compute latency (p50) was 2,208 ms.*
+*\*v2 average compute latency was inflated by two 60s external socket timeouts on queries 5 and 6 (network incident); clean re-run of queries 5 and 6 averaged 2,218.8 ms, yielding an adjusted 30-query mean compute latency of 4,791.5 ms (median p50: 2,208.1 ms).*

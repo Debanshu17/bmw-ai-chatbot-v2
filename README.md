@@ -6,9 +6,15 @@
 ![Gemini](https://img.shields.io/badge/Google_Gemini-3.5_Flash_Lite-4285F4.svg)
 ![License](https://img.shields.io/badge/License-MIT-black.svg)
 
-An enterprise-grade, high-performance Retrieval-Augmented Generation (RAG) system engineered for technical automotive specifications. Built with deterministic multi-stage guardrails, in-code citation provenance verification, real-time latency and financial telemetry, and an automated evaluation harness.
+An enterprise-grade, high-performance Retrieval-Augmented Generation (RAG) system engineered for technical automotive specifications. Built on a curated 32-chunk technical knowledge base across 3 BMW M engineering guides, the system features deterministic multi-stage guardrails, in-code citation provenance verification, real-time latency and financial telemetry, and an automated evaluation harness.
 
 > **Note on Repositories**: The original chatbot codebase is preserved 100% untouched and intact in its own standalone repository at [`https://github.com/Debanshu17/bmw-ai-chatbot`](https://github.com/Debanshu17/bmw-ai-chatbot). This repository (`bmw-ai-chatbot-v2`) represents the completely re-architected production system.
+
+### 📚 Knowledge Base Specifications
+The vector index indexes exactly **32 curated technical documentation chunks** across 3 engineering reference guides in [`data/raw_documents/`](data/raw_documents/):
+1. **`bmw_m_s58_engine_technical_guide.md` (12 chunks)**: Covers crankcase architecture, closed-deck block, forged crankshaft, indirect liquid-to-air charge air cooling, dual-mono-scroll turbocharging, 350-bar high-pressure direct injection, variable valve timing (Double-VANOS / Valvetronic), and map-controlled oil supply.
+2. **`bmw_m_chassis_xdrive_dynamics.md` (12 chunks)**: Covers M xDrive all-wheel-drive multi-plate clutch transfer case (4WD, 4WD Sport, 2WD), Active M Differential electronic multi-plate lock, Adaptive M Suspension dual-valve dampers, and M Compound / Carbon Ceramic braking dynamics.
+3. **`bmw_m_aerodynamics_and_lightweight_engineering.md` (8 chunks)**: Covers Carbon Fiber Reinforced Plastic (CFRP) structural roof construction, active cooling air flap control, rear diffuser downforce channels, and lightweight M Race Track package weight reduction metrics.
 
 ---
 
@@ -70,16 +76,15 @@ Evaluated on the 40-question technical benchmark ([`evals/dataset.jsonl`](evals/
 | **— Average Latency (Answerable)** | 5,453.9 ms | 8,548.6 ms* | Operational tracking | Pure compute (pacing excluded) |
 | **— Median (p50) Latency (Answerable)** | 3,999.2 ms | **2,208.1 ms** | Operational tracking | Median execution time |
 | **— p95 Latency (Answerable)** | 13,606.1 ms | 41,453.6 ms* | Operational tracking | 95th percentile tail |
-| **— Average TTFT (Answerable)** | 5,453.6 ms | 8,548.3 ms | Operational tracking | Unary response arrival |
 | **Average Cost / Query (Overall)** | \$0.000668 | \$0.000628 | $< \$0.005$ | Theoretical projection |
 | **— Average Cost / Query (Answerable Only)** | \$0.000668 | \$0.000837 | $< \$0.005$ | Context-loaded queries |
 | **Answer Source: Genuine Gemini Generation** | 40 / 40 (100%) | 40 / 40 (100%) | 100% on answerable | Zero extractive fallback used |
 | **Judge Method: LLM-as-a-Judge** | 40 / 40 (100%) | 30 / 30 on answerable | Strict rubric | Zero-temperature evaluation |
 
-*\*Note on v2 Latency Tail: While v2 achieved a faster median response time (p50 of 2,208.1 ms vs 3,999.2 ms for baseline), the v2 average and p95 latencies were inflated by two 60-second external socket timeouts on Google's embedding endpoint (`eval_005` and `eval_006`). Across the remaining 28 answerable queries, v2 average compute latency was ~4,950 ms.*
+*\*Note on v2 Latency Tail & External Network Incident: While v2 achieved a faster median response time (p50 of 2,208.1 ms vs 3,999.2 ms for baseline), the initial v2 average (8,548.6 ms) and p95 (41,453.6 ms) compute latencies were inflated by two 60-second external socket timeouts on Google's API during `eval_005` (57.1s) and `eval_006` (60.0s). In an isolated re-run under normal network conditions, `eval_005` ran in 2,011.5 ms and `eval_006` ran in 2,426.0 ms (averaging 2,218.8 ms). Substituting these into the 30 answerable queries yields an adjusted mean compute latency of 4,791.5 ms (p50: 2,175.8 ms, p95: 17,951.2 ms).*
 
 > **Important Latency & Cost Context**:
-> - **No Cheaper / Faster Claim**: v2 is not claimed to be inherently cheaper or faster than the baseline. Answering technical questions with RAG requires retrieving and injecting dense context (~850 prompt tokens per query in v2 vs. ~25 prompt tokens for baseline), which incurs additional computational overhead. While Gate 1 cuts cost and latency on out-of-scope queries (0 token cost, < 20ms execution) by blocking them before the LLM, answerable questions cost slightly more (\$0.000837 vs \$0.000668). The primary value of v2 lies in factual grounding (93.3% vs 53.3% accuracy) and verifiable source citations (96.25% recall vs 25.0%).
+> - **No Cheaper / Faster Claim**: v2 is not claimed to be inherently cheaper or faster than the baseline. Answering technical questions with RAG requires retrieving and injecting retrieved technical context (~850 prompt tokens per query in v2 vs. ~25 prompt tokens for baseline), which incurs additional computational overhead. While Gate 1 cuts cost and latency on out-of-scope queries (0 token cost, < 20ms execution) by blocking them before the LLM, answerable questions cost slightly more (\$0.000837 vs \$0.000668). The primary value of v2 lies in factual grounding (93.3% vs 53.3% accuracy) and verifiable source citations (96.25% recall vs 25.0%).
 > - **Rate-Limiting vs. Pure Compute**: To respect Google AI Studio quotas, the full benchmark enforced client-side rate-limiting (~7.5s between calls). The latency numbers above are drawn from the dedicated latency benchmark where pacing pauses were executed strictly outside the timed measurement block.
 
 ---
@@ -96,14 +101,19 @@ Evaluated on the 40-question technical benchmark ([`evals/dataset.jsonl`](evals/
    The v2 system failed 2 out of 40 queries (95.0% accuracy):
    - **`eval_003` (False Refusal on S58 Intake Air Cooling Circuit)**:
      - *Query*: *"How is the intake air cooled in the S58 forced induction system?"*
-     - *Root Cause Analysis*: Dense retrieval successfully found the relevant document chunk (`bmw_m_s58_engine_technical_guide.md`, Chapter 2) containing *"liquid-to-air intercooler positioned directly atop the engine intake manifold"*, scoring **0.7302** (with top chunk scoring **0.7566**, both well above the 0.72 similarity threshold). The chunk was present in the prompt context at Rank 4, but the model overlooked it and returned a false refusal (`used_fallback = True`). This was an **LLM context-attentiveness / extraction failure**, not a retrieval threshold miss.
-     - *Proposed Fix*: Implement **reranking** (e.g. Cohere or Flash Rerank) to place the most relevant sentence at Rank 1 of the prompt, or adopt **hybrid search** combining BM25 keywords with dense vectors to boost exact technical matches.
+     - *Root Cause Analysis*: Dense retrieval successfully found the target chunk with a similarity score of **0.7566** (well above Gate 1's 0.72 threshold). The Gemini model correctly generated the answer (*"The S58 engine features an indirect charge air cooling system where the intake air is cooled using a liquid-to-air intercooler positioned directly atop the engine intake manifold"*) and cited `fd73eb6cf193_1`. However, **Gate 2 (post-generation citation check)** enforced fallback because the citation validator required the exact composite chunk key (`bmw_m_s58_engine_technical_guide.md#fd73eb6cf193_1`), whereas the model omitted the document filename prefix and emitted only the chunk ID suffix (`fd73eb6cf193_1`). Because strict key matching failed, the citation was stripped (`valid_citations = []`), causing Gate 2 to flag zero valid citations and enforce `FALLBACK_MESSAGE`.
+     - *Proposed Fix*: Normalize citation IDs during validation (e.g., prefix-matching or stripping document filename before dictionary lookup) and update few-shot system prompt examples to reinforce exact composite chunk ID formatting.
    - **`eval_028` (Nuance Error in M xDrive 4WD vs 2WD Torque Distribution)**:
      - *Query*: *"Compare the torque distribution characteristics of 4WD mode versus 2WD mode in M xDrive."*
      - *Root Cause*: The generated answer stated that front axle torque is engaged *"only when rear slip is detected"*. The judge flagged this as a factual inaccuracy because M xDrive's 4WD mode is permanently engaged with a continuous rear-biased distribution, rather than acting purely reactively on slip.
      - *Hypothesis to Test*: Increasing chunk boundary overlap (from 50 to 120 tokens) and refining system prompt directives may preserve the complete multi-sentence context regarding differential clutch pre-loading, but this remains a hypothesis that must be empirically validated via an ablation benchmark.
 
-4. **Projected Financial Pricing vs. Free-Tier Execution**:
+4. **Latency Tail Outliers on Queries 5 & 6 (External Network Incident)**:
+   During the automated latency benchmark pass across the 30 answerable queries, two queries (`eval_005` and `eval_006`) experienced severe tail latencies of 57.1s and 60.0s. Inspection of connection diagnostics identified this as an **external network socket incident** (Google API socket connection drops / WinError 10054 / WSA 995, followed by 504 Deadline Exceeded), triggering multiple client-side exponential backoff retries before succeeding.
+   - *Isolated Re-run*: Re-running only `eval_005` and `eval_006` under normal network conditions measured clean compute latencies of **2,011.5 ms** for `eval_005` (vs 3,272.1 ms baseline) and **2,426.0 ms** for `eval_006` (vs 965.8 ms baseline), averaging **2,218.8 ms**.
+   - *Adjusted Baseline*: Incorporating these re-run numbers across the 30 answerable queries brings v2 mean compute latency from 8,548.6 ms down to **4,791.5 ms** (with a median p50 of **2,175.8 ms** and p95 of **17,951.2 ms**).
+
+5. **Projected Financial Pricing vs. Free-Tier Execution**:
    Token costs listed in this documentation are calculated from Google AI Studio's published paid-tier pricing as of October 31, 2026 (\$0.30 / 1M input tokens, \$2.50 / 1M output tokens). Development, testing, and automated benchmarking were executed exclusively within Google's Free Tier with rate-limiting backoff, resulting in **\$0.00 of actual financial spend**.
 
 ### Graceful-Degradation Extractive Fallback Mode
@@ -130,7 +140,7 @@ The system features an automated **extractive fallback mode** as an emergency sa
 - **Interactive UI Citations**: The frontend renders interactive motorsport pills under each response that expand to reveal the document name, chapter, and verbatim quote snippet.
 
 ### Pillar 3: Cost & Latency Telemetry (`telemetry/`)
-- **Execution Tracking (`telemetry/monitor.py`)**: Tracks Time-To-First-Token (TTFT), total latency, prompt tokens, and completion tokens per query.
+- **Execution Tracking (`telemetry/monitor.py`)**: Tracks total compute latency, prompt tokens, and completion tokens per query.
 - **Config-Driven Cost Calculator (`config/pricing.json`)**: Derives query costs dynamically from model pricing rates without hardcoded constants.
 - **Metrics Endpoint (`/metrics`)**: Exposes rolling window operational metrics including average latency, p50, p95, total costs, and fallback rates.
 

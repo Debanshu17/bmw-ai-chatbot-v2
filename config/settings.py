@@ -37,5 +37,5 @@ TELEMETRY_LOG_PATH: Path = BASE_DIR / os.getenv("TELEMETRY_LOG_PATH", "telemetry
 FALLBACK_MESSAGE: str = "I couldn't find this in the provided documents, so I can't answer it reliably."
 
 # Server Config
-HOST: str = os.getenv("HOST", "127.0.0.1")
+HOST: str = os.getenv("HOST", "0.0.0.0")
 PORT: int = int(os.getenv("PORT", "8000"))

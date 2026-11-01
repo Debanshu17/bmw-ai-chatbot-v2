@@ -5,6 +5,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)
 ![Gemini](https://img.shields.io/badge/Google_Gemini-3.5_Flash_Lite-4285F4.svg)
 ![License](https://img.shields.io/badge/License-MIT-black.svg)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Debanshu17/bmw-ai-chatbot-v2)
 
 An enterprise-grade, high-performance Retrieval-Augmented Generation (RAG) system engineered for technical automotive specifications. Built on a curated 32-chunk technical knowledge base across 3 BMW M engineering guides, the system features deterministic multi-stage guardrails, in-code citation provenance verification, real-time latency and financial telemetry, and an automated evaluation harness.
 

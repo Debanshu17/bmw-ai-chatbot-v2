@@ -11,7 +11,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
     
     <!-- CSS -->
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+        html, body { background-color: #000000; color: #ffffff; margin: 0; }
+        .m-emblem { height: 28px !important; width: 84px !important; max-height: 28px !important; display: block; flex-shrink: 0; }
+    </style>
     
     <!-- Marked.js for Markdown parsing -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -29,7 +34,7 @@
         <div class="nav-left">
             <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Toggle menu">☰</button>
             <div class="m-brand">
-                <svg class="m-emblem" viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <svg class="m-emblem" style="height: 28px; width: 84px; max-height: 28px;" viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <!-- Slanted M Tricolor Stripes -->
                     <polygon points="10,36 22,4 32,4 20,36" fill="#0066b1" />
                     <polygon points="26,36 38,4 48,4 36,36" fill="#1c69d4" />
@@ -204,6 +209,13 @@
     </div>
 
     <!-- JS -->
-    <script src="script.js"></script>
+    <script src="/static/script.js"></script>
+    <script>
+        if (!window.chatForm && !document.getElementById('userInput')) {
+            var s = document.createElement('script');
+            s.src = '/script.js';
+            document.body.appendChild(s);
+        }
+    </script>
 </body>
 </html>

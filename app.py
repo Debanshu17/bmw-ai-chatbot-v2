@@ -85,6 +85,14 @@ if static_dir.exists():
     async def serve_index():
         return FileResponse(static_dir / "index.html")
 
+    @app.get("/styles.css", include_in_schema=False)
+    async def serve_css():
+        return FileResponse(static_dir / "styles.css", media_type="text/css")
+
+    @app.get("/script.js", include_in_schema=False)
+    async def serve_js():
+        return FileResponse(static_dir / "script.js", media_type="application/javascript")
+
 
 if __name__ == "__main__":
     import uvicorn

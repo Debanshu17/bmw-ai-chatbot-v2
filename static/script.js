@@ -1,22 +1,27 @@
-// --- BMW M Production RAG Frontend Controller ---
+// ==========================================================================
+// BMW M TECHNICAL INTELLIGENCE — FRONTEND CLIENT CONTROLLER
+// Adhering strictly to DESIGN-bmw-m.md
+// ==========================================================================
 
-// --- DOM Elements ---
+// DOM Elements
 const chatForm = document.getElementById('chatForm');
 const chatInput = document.getElementById('userInput');
 const chatBox = document.getElementById('chatBox');
 const typingIndicator = document.getElementById('typingIndicator');
 const sendBtn = document.getElementById('sendBtn');
-const mainChatArea = document.querySelector('.chat-container');
+const chatScrollContainer = document.getElementById('chatScrollContainer');
 const historyList = document.getElementById('historyList');
 const newChatBtn = document.getElementById('newChatBtn');
+const topNewChatBtn = document.getElementById('topNewChatBtn');
 const mobileMenuBtn = document.getElementById('mobileMenuBtn');
 const sidebar = document.getElementById('sidebar');
+const welcomeHero = document.getElementById('welcomeHero');
 
-// --- State Management ---
-let sessions = JSON.parse(localStorage.getItem('bmw_rag_sessions')) || {};
-let currentSessionId = localStorage.getItem('bmw_rag_current_session') || null;
+// State Management
+let sessions = JSON.parse(localStorage.getItem('bmw_m_rag_sessions')) || {};
+let currentSessionId = localStorage.getItem('bmw_m_rag_current_session') || null;
 
-// Initialize
+// Initialize Session
 if (!currentSessionId || !sessions[currentSessionId]) {
     createNewSession();
 } else {
@@ -24,15 +29,16 @@ if (!currentSessionId || !sessions[currentSessionId]) {
     loadSession(currentSessionId);
 }
 
-// --- Functions ---
+// Generate Session ID
 function generateId() {
-    return 'bmw_session_' + Math.random().toString(36).substring(2, 12);
+    return 'bmw_m_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now().toString(36);
 }
 
+// Create New Session
 function createNewSession() {
     currentSessionId = generateId();
     sessions[currentSessionId] = {
-        title: "NEW CHAT",
+        title: "NEW INQUIRY",
         timestamp: Date.now(),
         messages: []
     };
@@ -41,11 +47,13 @@ function createNewSession() {
     loadSession(currentSessionId);
 }
 
+// Save to LocalStorage
 function saveState() {
-    localStorage.setItem('bmw_rag_sessions', JSON.stringify(sessions));
-    localStorage.setItem('bmw_rag_current_session', currentSessionId);
+    localStorage.setItem('bmw_m_rag_sessions', JSON.stringify(sessions));
+    localStorage.setItem('bmw_m_rag_current_session', currentSessionId);
 }
 
+// Render Sidebar Sessions
 function renderSidebar() {
     historyList.innerHTML = '';
     const sortedSessions = Object.entries(sessions).sort((a, b) => b[1].timestamp - a[1].timestamp);
@@ -67,19 +75,15 @@ function renderSidebar() {
     });
 }
 
+// Load Session
 function loadSession(id) {
     chatBox.innerHTML = '';
     const sessionMessages = sessions[id].messages;
 
     if (sessionMessages.length === 0) {
-        const welcomeHtml = `
-            <div class="message ai-message">
-                <div class="message-content">
-                    <p>BMW M MOTORSPORT ENGINEERING INTELLIGENCE ONLINE. HOW CAN I ASSIST YOUR TRACK SETUP TODAY?</p>
-                </div>
-            </div>`;
-        chatBox.insertAdjacentHTML('beforeend', welcomeHtml);
+        if (welcomeHero) welcomeHero.style.display = 'flex';
     } else {
+        if (welcomeHero) welcomeHero.style.display = 'none';
         sessionMessages.forEach(msg => {
             renderMessageToUI(msg);
         });
@@ -87,6 +91,7 @@ function loadSession(id) {
     scrollToBottom();
 }
 
+// Render Message
 function renderMessageToUI(msgObj) {
     const isUser = msgObj.isUser;
     const text = msgObj.text;
@@ -94,80 +99,149 @@ function renderMessageToUI(msgObj) {
     const telemetry = msgObj.telemetry || null;
     const usedFallback = msgObj.usedFallback || false;
 
-    const msgDiv = document.createElement('div');
-    msgDiv.classList.add('message');
-    msgDiv.classList.add(isUser ? 'user-message' : 'ai-message');
+    const messageEl = document.createElement('div');
+    messageEl.className = `message ${isUser ? 'user-message' : 'ai-message'}`;
 
-    const content = document.createElement('div');
-    content.classList.add('message-content');
+    const containerEl = document.createElement('div');
+    containerEl.className = 'message-container';
+
+    // Header Meta
+    const headerEl = document.createElement('div');
+    headerEl.className = 'message-meta-header';
 
     if (isUser) {
-        content.innerHTML = `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
+        headerEl.innerHTML = `
+            <div class="message-meta-left">
+                <span>[OPERATOR INQUIRY]</span>
+            </div>
+            <span class="message-timestamp">${new Date(msgObj.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        `;
     } else {
-        let bodyHtml = '';
+        headerEl.innerHTML = `
+            <div class="message-meta-left">
+                <span class="mini-m-stripes">
+                    <span class="mini-stripe mini-blue-lt"></span>
+                    <span class="mini-stripe mini-blue-dk"></span>
+                    <span class="mini-stripe mini-red"></span>
+                </span>
+                <span>BMW M TECHNICAL INTELLIGENCE // S58 ENGINE DOCS</span>
+            </div>
+            <span class="message-timestamp">DETERMINISTIC RETRIEVAL</span>
+        `;
+    }
+    containerEl.appendChild(headerEl);
 
+    // Message Body Text
+    const textEl = document.createElement('div');
+    textEl.className = 'message-text';
+
+    if (isUser) {
+        textEl.innerHTML = `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
+    } else {
+        let aiHtml = '';
+
+        // Guardrail Fallback Warning Box if activated
         if (usedFallback) {
-            bodyHtml += `<div class="fallback-pill">⚠️ GUARDRAIL FALLBACK ACTIVATED</div>`;
+            aiHtml += `
+                <div class="fallback-warning-box">
+                    <span class="fallback-icon">▲</span>
+                    <span>GUARDRAIL ACTIVATED: QUERY EXCEEDS S58 MANUAL SCOPE OR FAILED CITATION VERIFICATION</span>
+                </div>
+            `;
         }
 
+        // Markdown Parsing
         if (window.marked) {
-            bodyHtml += marked.parse(text);
+            aiHtml += marked.parse(text);
         } else {
-            bodyHtml += `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
+            aiHtml += `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
         }
 
-        // Render Citations
+        // Verified Citations Panel
         if (citations && citations.length > 0) {
+            const uniqueId = 'cit_group_' + Math.random().toString(36).substring(2, 9);
             let citHtml = `
-                <div class="citations-container">
-                    <div class="citations-title">VERIFIED PROVENANCE (${citations.length})</div>
-                    <div class="citations-list">`;
+                <div class="citations-panel">
+                    <div class="citations-header">
+                        <span class="citations-label">
+                            VERIFIED PROVENANCE (${citations.length} CHUNKS CITED)
+                        </span>
+                        <span class="provenance-status">● VERIFIED GROUND TRUTH</span>
+                    </div>
+                    <div class="citations-grid">
+            `;
 
             citations.forEach((c, idx) => {
+                const drawerId = `${uniqueId}_drawer_${idx}`;
                 citHtml += `
-                    <div>
-                        <div class="citation-pill" onclick="toggleCitationDrawer(this, 'drawer_${idx}')">
-                            <span>📄</span> ${escapeHtml(c.doc)} | ${escapeHtml(c.page_or_chapter)}
+                    <div class="citation-pill-item">
+                        <div class="citation-pill" onclick="toggleCitationDrawer(this, '${drawerId}')">
+                            <span class="citation-doc-icon">◧</span>
+                            <span>${escapeHtml(c.doc)} · ${escapeHtml(c.page_or_chapter)}</span>
+                            <span class="citation-arrow">▶</span>
                         </div>
-                        <div id="drawer_${idx}" class="citation-drawer">
-                            <div><strong>Source:</strong> ${escapeHtml(c.doc)} (${escapeHtml(c.page_or_chapter)})</div>
-                            <div><strong>Chunk ID:</strong> <code>${escapeHtml(c.chunk_id)}</code></div>
-                            <div class="quote-text">"${escapeHtml(c.quote_snippet)}"</div>
+                        <div id="${drawerId}" class="citation-drawer">
+                            <div class="citation-meta-row">
+                                <div class="citation-meta-item">DOCUMENT: <span>${escapeHtml(c.doc)}</span></div>
+                                <div class="citation-meta-item">CHAPTER: <span>${escapeHtml(c.page_or_chapter)}</span></div>
+                                <div class="citation-meta-item">CHUNK: <code>${escapeHtml(c.chunk_id)}</code></div>
+                            </div>
+                            <div class="quote-snippet">"${escapeHtml(c.quote_snippet)}"</div>
                         </div>
-                    </div>`;
+                    </div>
+                `;
             });
 
             citHtml += `</div></div>`;
-            bodyHtml += citHtml;
+            aiHtml += citHtml;
         }
 
-        // Render Telemetry HUD
+        // Telemetry Readout HUD
         if (telemetry) {
-            const costStr = telemetry.computed_cost_usd !== undefined ? `$${telemetry.computed_cost_usd.toFixed(6)}` : '$0.000000';
             const durMs = telemetry.duration_s ? Math.round(telemetry.duration_s * 1000) : (telemetry.ttft_ms || 0);
-            bodyHtml += `
+            const costUsd = telemetry.computed_cost_usd !== undefined ? `$${telemetry.computed_cost_usd.toFixed(6)}` : '$0.000000';
+            const totalTokens = (telemetry.prompt_tokens || 0) + (telemetry.completion_tokens || 0);
+            const modelName = telemetry.model_name || 'gemini-2.5-flash';
+
+            aiHtml += `
                 <div class="telemetry-hud">
-                    <span class="hud-metric">LATENCY: <span class="hud-val">${durMs}ms</span></span>
-                    <span class="hud-metric">COST: <span class="hud-val">${costStr}</span></span>
-                    <span class="hud-metric">TOKENS: <span class="hud-val">${telemetry.prompt_tokens + telemetry.completion_tokens}</span></span>
-                    <span class="hud-metric">MODEL: <span class="hud-val">${telemetry.model_name || 'gemini-2.5-flash'}</span></span>
-                </div>`;
+                    <div class="hud-group">
+                        <span class="hud-metric">LATENCY: <span class="hud-val accent">${durMs}ms</span></span>
+                        <span class="hud-metric">COST: <span class="hud-val">${costUsd}</span></span>
+                        <span class="hud-metric">TOKENS: <span class="hud-val">${totalTokens} (${telemetry.prompt_tokens || 0} in / ${telemetry.completion_tokens || 0} out)</span></span>
+                    </div>
+                    <div class="hud-group">
+                        <span class="hud-metric">GATE: <span class="hud-val ${usedFallback ? 'accent' : ''}">${usedFallback ? 'REFUSED / FALLBACK' : 'PASSED (≥0.72)'}</span></span>
+                        <span class="hud-metric">ENGINE: <span class="hud-val">${modelName}</span></span>
+                    </div>
+                </div>
+            `;
         }
 
-        content.innerHTML = bodyHtml;
+        textEl.innerHTML = aiHtml;
     }
 
-    msgDiv.appendChild(content);
-    chatBox.appendChild(msgDiv);
+    containerEl.appendChild(textEl);
+    messageEl.appendChild(containerEl);
+    chatBox.appendChild(messageEl);
 }
 
-function toggleCitationDrawer(btn, drawerId) {
+// Toggle Citation Drawer
+function toggleCitationDrawer(pillEl, drawerId) {
     const drawer = document.getElementById(drawerId);
-    if (drawer) {
-        drawer.classList.toggle('visible');
+    if (!drawer) return;
+
+    const isVisible = drawer.classList.contains('visible');
+    if (isVisible) {
+        drawer.classList.remove('visible');
+        pillEl.classList.remove('expanded');
+    } else {
+        drawer.classList.add('visible');
+        pillEl.classList.add('expanded');
     }
 }
 
+// HTML Escaping
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/[&<>"']/g, function(m) {
@@ -181,22 +255,17 @@ function escapeHtml(str) {
     });
 }
 
+// Scroll to Bottom
 function scrollToBottom() {
-    mainChatArea.scrollTop = mainChatArea.scrollHeight;
+    chatScrollContainer.scrollTop = chatScrollContainer.scrollHeight;
 }
 
-// --- Event Listeners ---
-newChatBtn.addEventListener('click', createNewSession);
-
-mobileMenuBtn.addEventListener('click', () => {
-    sidebar.classList.toggle('open');
-});
-
+// Auto-expand Textarea
 chatInput.addEventListener('input', function() {
     this.style.height = 'auto';
-    this.style.height = (this.scrollHeight) + 'px';
+    this.style.height = Math.min(this.scrollHeight, 160) + 'px';
     if (this.value.trim() === '') {
-        this.style.height = '60px';
+        this.style.height = '48px';
     }
 });
 
@@ -207,6 +276,7 @@ chatInput.addEventListener('keydown', function(e) {
     }
 });
 
+// Submit Chat Request
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (sendBtn.disabled) return;
@@ -214,26 +284,35 @@ chatForm.addEventListener('submit', async (e) => {
     const question = chatInput.value.trim();
     if (!question) return;
 
+    // Hide welcome hero on first message
+    if (welcomeHero) welcomeHero.style.display = 'none';
+
     // Add user message to UI & state
-    const userMsg = { isUser: true, text: question };
+    const userMsg = { 
+        isUser: true, 
+        text: question, 
+        timestamp: Date.now() 
+    };
     renderMessageToUI(userMsg);
     sessions[currentSessionId].messages.push(userMsg);
 
-    // Auto-generate title
+    // Auto-generate session title from first message
     if (sessions[currentSessionId].messages.length === 1) {
-        let title = question.substring(0, 25);
-        if (question.length > 25) title += '...';
+        let title = question.toUpperCase().substring(0, 26);
+        if (question.length > 26) title += '...';
         sessions[currentSessionId].title = title;
         renderSidebar();
     }
     sessions[currentSessionId].timestamp = Date.now();
     saveState();
 
+    // Reset input
     chatInput.value = '';
-    chatInput.style.height = '60px';
+    chatInput.style.height = '48px';
     sendBtn.disabled = true;
     chatInput.disabled = true;
 
+    // Show indicator
     typingIndicator.classList.remove('hidden');
     scrollToBottom();
 
@@ -245,7 +324,7 @@ chatForm.addEventListener('submit', async (e) => {
         });
 
         if (!response.ok) {
-            throw new Error(`API Error: ${response.status}`);
+            throw new Error(`API HTTP Error: ${response.status}`);
         }
 
         const data = await response.json();
@@ -256,7 +335,8 @@ chatForm.addEventListener('submit', async (e) => {
             text: data.answer,
             citations: data.citations || [],
             telemetry: data.telemetry || null,
-            usedFallback: data.used_fallback || false
+            usedFallback: data.used_fallback || false,
+            timestamp: Date.now()
         };
 
         renderMessageToUI(aiMsg);
@@ -265,14 +345,15 @@ chatForm.addEventListener('submit', async (e) => {
         saveState();
 
     } catch (error) {
-        console.error('Error in chat request:', error);
+        console.error('Chat execution failed:', error);
         typingIndicator.classList.add('hidden');
         const errorMsg = {
             isUser: false,
-            text: "SYSTEM ERROR: FAILED TO CONNECT TO RAG ENGINE. ENSURE BACKEND IS ONLINE AT HTTP://127.0.0.1:8000.",
+            text: "SYSTEM ERROR: Failed to communicate with BMW M RAG engine. Ensure the FastAPI backend is running on http://127.0.0.1:8000.",
             citations: [],
             telemetry: null,
-            usedFallback: true
+            usedFallback: true,
+            timestamp: Date.now()
         };
         renderMessageToUI(errorMsg);
     } finally {
@@ -282,3 +363,32 @@ chatForm.addEventListener('submit', async (e) => {
         scrollToBottom();
     }
 });
+
+// Quick Preset and Prompt Card Click Handlers
+function setupQuickPrompts() {
+    document.querySelectorAll('[data-query]').forEach(el => {
+        el.addEventListener('click', () => {
+            const query = el.getAttribute('data-query');
+            if (query) {
+                chatInput.value = query;
+                chatInput.style.height = 'auto';
+                chatInput.style.height = Math.min(chatInput.scrollHeight, 160) + 'px';
+                chatInput.focus();
+                chatForm.dispatchEvent(new Event('submit'));
+                if (window.innerWidth <= 768) sidebar.classList.remove('open');
+            }
+        });
+    });
+}
+setupQuickPrompts();
+
+// New Chat Button Listeners
+if (newChatBtn) newChatBtn.addEventListener('click', createNewSession);
+if (topNewChatBtn) topNewChatBtn.addEventListener('click', createNewSession);
+
+// Mobile Sidebar Toggle
+if (mobileMenuBtn) {
+    mobileMenuBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('open');
+    });
+}

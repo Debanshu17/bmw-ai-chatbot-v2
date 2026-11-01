@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI ASSISTANT | BMW M DESIGN</title>
+    <title>BMW M TECHNICAL INTELLIGENCE | PRODUCTION RAG</title>
     
-    <!-- Google Fonts: Inter -->
+    <!-- Google Fonts: Inter (300 Light, 400 Regular, 700 Bold) & JetBrains Mono for Telemetry -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
     
     <!-- CSS -->
     <link rel="stylesheet" href="styles.css">
@@ -18,68 +17,190 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
-    <!-- M Tricolor Stripe -->
-    <div class="m-stripe">
-        <div class="stripe light-blue"></div>
-        <div class="stripe dark-blue"></div>
-        <div class="stripe red"></div>
+    <!-- M Tricolor Brand Stripe (4px) -->
+    <div class="m-stripe-divider">
+        <div class="stripe-segment m-blue-light"></div>
+        <div class="stripe-segment m-blue-dark"></div>
+        <div class="stripe-segment m-red"></div>
     </div>
 
-    <div class="app-layout">
-        <!-- Sidebar -->
-        <aside class="sidebar" id="sidebar">
-            <button id="newChatBtn" class="button-primary-outline w-100 new-chat-btn">
+    <!-- Top Navigation Bar (64px) -->
+    <header class="top-nav">
+        <div class="nav-left">
+            <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Toggle menu">☰</button>
+            <div class="m-brand">
+                <svg class="m-emblem" viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Slanted M Tricolor Stripes -->
+                    <polygon points="10,36 22,4 32,4 20,36" fill="#0066b1" />
+                    <polygon points="26,36 38,4 48,4 36,36" fill="#1c69d4" />
+                    <polygon points="42,36 54,4 64,4 52,36" fill="#e22718" />
+                    <!-- Bold White M -->
+                    <path d="M68,36 L81,4 L91,4 L98,22 L105,4 L115,4 L128,36 L117,36 L110,17 L103,34 L93,34 L86,17 L79,36 Z" fill="#ffffff" />
+                </svg>
+                <div class="brand-text">
+                    <span class="brand-title">TECHNICAL INTELLIGENCE</span>
+                    <span class="brand-sub">PRODUCTION RAG v2.0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Telemetry HUD Badges -->
+        <div class="nav-center">
+            <div class="nav-telemetry-badge">
+                <span class="status-dot"></span>
+                <span class="badge-label">GATEWAY</span>
+                <span class="badge-value">ONLINE</span>
+            </div>
+            <div class="nav-telemetry-badge">
+                <span class="badge-label">MODEL</span>
+                <span class="badge-value">GEMINI 2.5 FLASH</span>
+            </div>
+            <div class="nav-telemetry-badge">
+                <span class="badge-label">THRESHOLD</span>
+                <span class="badge-value">0.72 COSINE</span>
+            </div>
+            <div class="nav-telemetry-badge">
+                <span class="badge-label">INDEX</span>
+                <span class="badge-value">32 CHUNKS</span>
+            </div>
+        </div>
+
+        <div class="nav-right">
+            <button id="topNewChatBtn" class="button-nav-action">
                 <span>+</span> NEW CHAT
             </button>
-            <div class="sidebar-label">HISTORY</div>
-            <ul id="historyList" class="history-list">
-                <!-- Chat history items injected here by JS -->
-            </ul>
+        </div>
+    </header>
+
+    <div class="app-layout">
+        <!-- Sidebar Navigation & Specs -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button id="newChatBtn" class="button-primary-outline w-100">
+                    <span>+</span> NEW INQUIRY
+                </button>
+            </div>
+
+            <!-- Quick Technical Presets -->
+            <div class="sidebar-section">
+                <div class="sidebar-label">ENGINEERING PRESETS</div>
+                <div class="preset-list">
+                    <button class="preset-chip" data-query="What is the maximum boost pressure delivered by the S58 turbochargers on Competition and CS models?">
+                        <span class="chip-code">[01]</span> S58 TURBO BOOST
+                    </button>
+                    <button class="preset-chip" data-query="How is the intake air cooled in the S58 forced induction system?">
+                        <span class="chip-code">[02]</span> AIR-TO-WATER COOLING
+                    </button>
+                    <button class="preset-chip" data-query="What is the compression ratio of the S58 engine?">
+                        <span class="chip-code">[03]</span> S58 COMPRESSION RATIO
+                    </button>
+                    <button class="preset-chip" data-query="What is the battery chemistry and kilowatt-hour capacity of the Tesla Cybertruck?">
+                        <span class="chip-code">[04]</span> GUARDRAIL TEST (CYBERTRUCK)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chat History -->
+            <div class="sidebar-section flex-fill">
+                <div class="sidebar-label">SESSION LOGS</div>
+                <ul id="historyList" class="history-list">
+                    <!-- Session history injected here -->
+                </ul>
+            </div>
+
+            <!-- Technical Specification Footer -->
             <div class="sidebar-footer">
-                <div class="badge">M PERFORMANCE</div>
+                <div class="spec-footer-title">SYSTEM ARCHITECTURE</div>
+                <div class="spec-row">
+                    <span class="spec-key">EMBEDDING</span>
+                    <span class="spec-val">text-embedding-004</span>
+                </div>
+                <div class="spec-row">
+                    <span class="spec-key">RETRIEVAL</span>
+                    <span class="spec-val">Cosine (top-k=5)</span>
+                </div>
+                <div class="spec-row">
+                    <span class="spec-key">GUARDRAIL</span>
+                    <span class="spec-val">Pre-LLM + Post-Val</span>
+                </div>
+                <div class="m-subtle-badge">BMW M MOTORSPORT GMBH</div>
             </div>
         </aside>
 
-        <!-- Main Chat Area -->
-        <div class="chat-layout">
-            <!-- Mobile Toggle -->
-            <button id="mobileMenuBtn" class="mobile-menu-btn">☰</button>
-
-            <!-- Header -->
-            <header class="chat-header">
-                <h1 class="display-title">AI ASSISTANT</h1>
-                <p class="subtitle">INTELLIGENT MOTORSPORT ENGINEERING</p>
-            </header>
-
-            <!-- Chat Container -->
-            <main class="chat-container">
-                <div id="chatBox" class="chat-box">
-                    <!-- Initial AI Welcome Message -->
-                    <div class="message ai-message">
-                        <div class="message-content">
-                            <p>SYSTEM ONLINE. HOW CAN I ASSIST YOU TODAY?</p>
+        <!-- Main Chat Surface -->
+        <main class="chat-surface">
+            <!-- Messages Container -->
+            <div class="chat-scroll-container" id="chatScrollContainer">
+                <div class="chat-content-wrap">
+                    
+                    <!-- Welcome Hero Header -->
+                    <div class="hero-engineering-card" id="welcomeHero">
+                        <div class="hero-top-meta">
+                            <span class="m-tag">MOTORSPORT SPECIFICATION INTELLIGENCE</span>
+                            <span class="m-version">V2.0 PROD</span>
+                        </div>
+                        <h1 class="hero-display-title">BMW M PRODUCTION RAG</h1>
+                        <p class="hero-subtext">
+                            Deterministic knowledge retrieval system grounded strictly in BMW S58 TwinPower Turbo technical documentation. Fully validated provenance with strict citation guardrails.
+                        </p>
+                        
+                        <div class="hero-quick-prompts">
+                            <div class="prompt-card" data-query="What is the maximum boost pressure delivered by the S58 turbochargers on Competition and CS models?">
+                                <span class="prompt-num">01</span>
+                                <div class="prompt-body">
+                                    <div class="prompt-title">S58 TURBO BOOST PRESSURE</div>
+                                    <div class="prompt-desc">Competition (1.3 bar) vs CS (2.1 bar) relative boost metrics.</div>
+                                </div>
+                            </div>
+                            <div class="prompt-card" data-query="How is the intake air cooled in the S58 forced induction system?">
+                                <span class="prompt-num">02</span>
+                                <div class="prompt-body">
+                                    <div class="prompt-title">INDUCTION INTERCOOLING SYSTEM</div>
+                                    <div class="prompt-desc">Indirect liquid-to-air cooling circuit & low-temperature radiator.</div>
+                                </div>
+                            </div>
+                            <div class="prompt-card" data-query="What is the battery chemistry and kilowatt-hour capacity of the Tesla Cybertruck?">
+                                <span class="prompt-num">03</span>
+                                <div class="prompt-body">
+                                    <div class="prompt-title">OUT-OF-SCOPE GUARDRAIL CHECK</div>
+                                    <div class="prompt-desc">Pre-LLM similarity gating refuses out-of-scope queries (0 live tokens).</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-                
-                <!-- Typing Indicator (Hidden by default) -->
-                <div id="typingIndicator" class="typing-indicator hidden">
-                    PROCESSING...
-                </div>
-            </main>
 
-            <!-- Input Area -->
-            <footer class="input-area">
-                <form id="chatForm" class="input-form">
-                    <textarea 
-                        id="userInput" 
-                        placeholder="ENTER QUERY..." 
-                        rows="1" 
-                        required></textarea>
-                    <button type="submit" id="sendBtn" class="button-primary">SEND</button>
-                </form>
+                    <!-- Dynamic Chat Messages Stream -->
+                    <div id="chatBox" class="chat-box"></div>
+
+                    <!-- Real-time Processing Indicator -->
+                    <div id="typingIndicator" class="typing-indicator hidden">
+                        <span class="pulse-indicator"></span>
+                        <span class="typing-text">RETRIEVING FROM S58 KNOWLEDGE BASE & VERIFYING PROVENANCE...</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Fixed Input Bar -->
+            <footer class="input-dock">
+                <div class="input-container">
+                    <form id="chatForm" class="input-form">
+                        <textarea 
+                            id="userInput" 
+                            placeholder="ASK A TECHNICAL QUESTION ABOUT BMW M ENGINES, S58 TURBO, COOLING..." 
+                            rows="1" 
+                            required></textarea>
+                        <button type="submit" id="sendBtn" class="button-primary">
+                            <span>EXECUTE</span>
+                            <span class="btn-arrow">→</span>
+                        </button>
+                    </form>
+                    <div class="input-footer-hint">
+                        <span>STRICT PROVENANCE ENFORCED · RESPONSES RESTRICTED TO VERIFIED S58 MANUAL DOCUMENTATION</span>
+                    </div>
+                </div>
             </footer>
-        </div>
+        </main>
     </div>
 
     <!-- JS -->
